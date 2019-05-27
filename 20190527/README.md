@@ -402,4 +402,4 @@ output {
           "message" : "200.49.190.101 - - [04/Jan/2015:05:17:39 +0000] \"GET /reset.css HTTP/1.1\" 200 1015 \"-\" \"-\""
         }
 ```
-现在已经实现了logstash+filebeat+es实现了一个简单的`input`,`filter`,`output`的过程。
+现在已经用logstash+filebeat+es实现了一个简单的`input`,`filter`,`output`的过程。
