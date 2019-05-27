@@ -119,10 +119,3 @@ public class LogHandler implements InvocationHandler {
 }
 
 ```
-先说反射的作用：
-1. 在程序运行时构造出任意一个类的对象
-2. 在程序运行时，能获取类的方法和成员变量
-
-动态代理好处：
-1.
-spring动态代理
