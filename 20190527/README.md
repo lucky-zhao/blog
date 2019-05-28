@@ -319,7 +319,7 @@ ERROR: [2] bootstrap checks failed
 `vm.max_map_count=655360`
 保存后，执行：`sysctl -p`
 重新启动es，测试一下是否正常：
-`curl http://192.168.1.44`
+`curl http://192.168.1.44:9200`
 输出：
 ```
 {
