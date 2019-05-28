@@ -1,5 +1,4 @@
 # ELK之logstash学习
-本篇主要学习于[https://cloud.tencent.com/developer/article/1353068](https://cloud.tencent.com/developer/article/1353068)
 
 ## logstash是什么？
 logstash是开源的服务端数据处理管道，能够同时从多个来源采集数据，转换数据，然后将数据发送到你想要存的地方。
