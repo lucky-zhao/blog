@@ -193,7 +193,7 @@ rm -rf ./data/registry
 ```
 好像按照某种规则格式化了，但是不明显；把日志文件里换简单一点的。
 
-* 新建一个日志文件`logstash-second-log` 内容为：55.3.244.1 GET /index.html 15824 0.043`，看一下输出情况：
+* 新建一个日志文件`logstash-second-log` 内容为：`55.3.244.1 GET /index.html 15824 0.043`，看一下输出情况：
 ```
 {
     "@timestamp" => 2019-05-27T20:31:27.885Z,
@@ -403,3 +403,30 @@ output {
         }
 ```
 现在已经用logstash+filebeat+es实现了一个简单的`input`,`filter`,`output`的过程。
+
+* logstash配置文件
+配置文件在logstash根目录下
+`vim ./config/logstash.yml`
+配置文件描述引用网上找的[https://segmentfault.com/a/1190000016591476?utm_source=tag-newest](https://segmentfault.com/a/1190000016591476?utm_source=tag-newest)
+个人觉得比较常用的应该是：
+* `node.name`节点名称，配置多节点的时候肯定要用到
+* `config.reload.automatic`默认是`false`，如果设置为`true`就是自动加载配置文件
+* `config.reload.interval` 配置文件对这条属性的解释：`How often to check if the pipeline configuration has changed (in seconds)
+`,简单来说就是可以配置一个时间(秒)，每隔几秒重载配置文件
+上面的2个配置如果配置了，那么在启动时候就不需要加`--config.reload.automatic`
+* `log.level`根据实际情况配置输出的日志级别
+* `log.format`日志输出的格式
+* `path.logs`logstash的日志保存路径
+
+对于日志文件可以进行简单的封装，从上面启动logstash的命令`./bin/logstash -f /home/logstash-config/first-pipeline.conf --config.reload.automatic`可以看到
+`-f`后面可以指定配置文件或者配置文件目录比如启动的时候加载`/logstash/conf/*.conf`，`/logstash/conf/`目录下所有`.conf`的配置都会加载。这样我们可以把logstash.yml文件根据配置属性的不同封装成几个配置文件：
+* `log`的可以封装到`log.conf`里面
+* `pipeline`的可以封装到`pipeline.conf`里面
+等等。
+
+这样做的好处是：
+* 配置文件抽象化，类似于java的封装特性：把相同类型或者类型方法封装到一个`class`里面，保证`class`的纯洁性
+* 方便维护。如果我想改日志输出级别，那么不需要打开原来的logstash.yml里面很多我不需要的属性，我只需要打开`log.conf`修改即可
+* 不容易出问题。如果我只是想改log输出级别，在原有的logstash.yml文件里修改，如果不小心改到其他什么地方，会造成莫名其妙的报错，并且难以定位问题。但是在`log.conf`里面改则不会有这样的问题，如果改了此文件发现启动报错，那么很明显就是`log.conf`里有地方写错了。
+
+以上是初步学习的一点记录，如果有错误，后面遇到了在改回来吧。
