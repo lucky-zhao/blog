@@ -417,7 +417,8 @@ output {
 * `log.format`日志输出的格式
 * `path.logs`logstash的日志保存路径
 
-* 配置文件封装
+
+5. **配置文件的封装**
 
 对于日志文件可以进行简单的封装，从上面启动logstash的命令`./bin/logstash -f /home/logstash-config/first-pipeline.conf --config.reload.automatic`可以看到
 `-f`后面可以指定配置文件或者配置文件目录比如启动的时候加载`/logstash/conf/*.conf`，`/logstash/conf/`目录下所有`.conf`的配置都会加载。这样我们可以把logstash.yml文件根据配置属性的不同封装成几个配置文件：
