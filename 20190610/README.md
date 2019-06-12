@@ -508,4 +508,259 @@ User类里建了一个静态内部类，用来给User构建对象属性。在调
 ```
 相比之前的写法更加清晰，调用更加清楚。
 
-5. 原型模式：用于创建重复的对象，同时又能保证性能。
+5. 原型模式：用于创建重复的对象，同时又能保证性能。java中的克隆技术，以某个对象为原型，复制出新对象。新对象类似于`new`，但是`new`出来的对象属性是默认值。而克隆出来的对象属性和原对象相同，并且对克隆出来的新对象修改不会影响原型对象。
+对象的复制又有两种：浅拷贝和深拷贝
+浅拷贝：创建一个新的对象，这个对象和原对象属性值相同，如果是基本数据类型，那么就是拷贝的基本数据类型的值，因为是两份不同的数据，所以对其中一个进行修改，不会影响其他的。如果是引用类型，那么拷贝的就是引用(内存地址)，指向的还是原来的对象。
+引入java中值传递的两种不同：
+* 基本数据类型值传递，简单的例子：
+```
+public class NumberTest {
+    public static void main(String[] args) {
+        int a=5;
+        NumberTest.change(a);
+        System.out.println(a);
+
+    }
+    private static void change(int a){
+        a=10;
+    }
+}
+```
+输出还是5，不会因为调用了`change`方法被改变。方法里的基本数据类型都是存在于栈内存里，在调用`change`方法时，把5拷贝过去，并且在该方法栈里定义了一个变量来接受传递过来的值。此时栈内存里有2个变量，分别对应了5和10。在`change`方法中对变量修改，改变只是这个方法中变量的值，不会影响其他方法里的值。
+* 引用类型的值传递，例子1：
+```
+public class User {
+    private int age;
+
+    public int getAge() {
+        return age;
+    }
+
+    public void setAge(int age) {
+        this.age = age;
+    }
+}
+
+public class UserTest {
+    public static void main(String[] args) {
+        User user=new User();
+        user.setAge(10);
+        changeObj(user);
+        System.out.println(user.getAge());
+    }
+
+    private static void changeObj(User user){
+        user.setAge(20);
+    }
+}
+
+```
+输出结果是20，main方法中原来定义的age=10，变成了20。大概执行过程：
+*   `main`方法定义了一个`User user=new User();`，变量user存在于栈内存，而实际new出来的对象存放在堆内存。
+*   调用`changeObj`的时候把栈内存的user引用拷贝了一份传了过去，也就是说`changeObj`方法里的user变量指向的还是原来的堆内存中的那个对象。也就是2个引用指向同一个对象。这样的情况就很明显了，改来改去都是改的同一个对象，所以不管哪个引用获取属性值的时候，都是被修改后的新值。因为只有一个对象。
+
+* 例子2:
+```
+public class StringTest {
+    public static void main(String[] args) {
+        String str="aaa";
+        changeStr(str);
+        System.out.println(str);
+    }
+    private static void changeStr(String str){
+        str="bbb";
+    }
+}
+```
+这个输出什么？`String`是引用类型，是不是和上面的结果一样呢？但是实际上输出结果还是`aaa`。
+执行过程：
+*   `main`方法定义了一个`String str="aaa";` ，变量str存于栈内存中，变量值`aaa`会先到常量池中查找是否存在相同的字符串，如果存在，则直接把栈内存中的引用指向该字符串，如果不存在，则在常量池中生成一个字符串，在将引用指向它。
+*   在常量池中没有`aaa`，所以在堆中开辟内存并存值`aaa`
+*   调用`changeStr`的时候把栈内存中的str引用拷贝一份传了过去
+*   拷贝出来的str引用进入`changeStr`方法，先在常量池中查找是否有`bbb`这个字符串，没有的话在堆中开辟内存并且存值`bbb`，此时就是2个引用，2个对象。
+*   `changeStr`中是对它方法体中的str赋值，跟main方法中的str没有关系，所以输出还是aaa
+
+浅拷贝的例子：
+```
+public class Student implements Cloneable {
+    private int id;
+
+    private String name;
+
+    private InnerAge innerAge;
+
+    @Override
+    public String toString() {
+        return "Student{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", innerAge=" + innerAge +
+                '}';
+    }
+
+    @Override
+    protected Object clone() throws CloneNotSupportedException {
+        return super.clone();
+    }
+
+    public InnerAge getInnerAge() {
+        return innerAge;
+    }
+
+    public void setInnerAge(InnerAge innerAge) {
+        this.innerAge = innerAge;
+    }
+
+    //静态内部类，方便测试引用类型
+    public static class InnerAge{
+        private int age;
+
+        @Override
+        public String toString() {
+            return "InnerAge{" +
+                    "age=" + age +
+                    '}';
+        }
+
+        public int getAge() {
+            return age;
+        }
+
+        public void setAge(int age) {
+            this.age = age;
+        }
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+}
+
+```
+测试用例：
+```
+public class TTest {
+    public static void main(String[] args) throws CloneNotSupportedException {
+        Student student = new Student();
+        Student.InnerAge innerAge = new Student.InnerAge();
+        innerAge.setAge(10);
+        student.setId(1);
+        student.setName("a");
+        student.setInnerAge(innerAge);
+        System.out.println("原对象：" + student);
+        //克隆出一个新的对象
+
+        Student newObj = (Student) student.clone();
+        //改变原来对象里的属性
+        student.getInnerAge().setAge(20);
+        student.setName("b");
+        student.setId(2);
+        System.out.println("改变原对象值后的克隆对象："+newObj);
+    }
+}
+```
+输出结果：
+```
+原对象：Student{id=1, name='a', innerAge=InnerAge{age=10}}
+改变原对象值后的克隆对象：Student{id=1, name='a', innerAge=InnerAge{age=20}}
+```
+可以看到浅拷贝出来的对象，这个对象和原对象属性值相同，如果是基本数据类型，那么就是拷贝的基本数据类型的值，因为是两份不同的数据，所以对其中一个进行修改，不会影响其他的。如果是引用类型，那么拷贝的就是引用(内存地址)，指向的还是原来的对象。两个引用指向同一个对象，所以改来改去都是对同一个对象的修改。所以输出innerAge由以前的10变成20。
+
+深拷贝，把某个对象里面所有的属性拷贝，并且需要把该对象里面的对象也要拷贝。这样拷贝出来的新对象就是全新的。
+把刚才的例子改造一下`Student`里面不光clone自己的类对象，还要拷贝内部类`InnerAge`，并且`InnerAge`类也需要实现`Cloneable`接口，实现它的`clone`方法。
+```
+public class Student implements Cloneable {
+    private int id;
+
+    private String name;
+
+    private InnerAge innerAge;
+
+    @Override
+    public String toString() {
+        return "Student{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", innerAge=" + innerAge +
+                '}';
+    }
+
+    @Override
+    protected Object clone() throws CloneNotSupportedException {
+        Object o = super.clone();
+        Student student = (Student) o;
+        student.innerAge = (InnerAge) student.getInnerAge().clone();
+        return o;
+    }
+
+    public InnerAge getInnerAge() {
+        return innerAge;
+    }
+
+    public void setInnerAge(InnerAge innerAge) {
+        this.innerAge = innerAge;
+    }
+
+    //静态内部类，方便测试引用类型
+    public static class InnerAge implements Cloneable {
+        private int age;
+
+        @Override
+        protected Object clone() throws CloneNotSupportedException {
+            return super.clone();
+        }
+
+        @Override
+        public String toString() {
+            return "InnerAge{" +
+                    "age=" + age +
+                    '}';
+        }
+
+        public int getAge() {
+            return age;
+        }
+
+        public void setAge(int age) {
+            this.age = age;
+        }
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+}
+
+```
+运行刚才的测试代码输出：
+```
+原对象：Student{id=1, name='a', innerAge=InnerAge{age=10}}
+改变原对象值后的克隆对象：Student{id=1, name='a', innerAge=InnerAge{age=10}}
+```
+innerAge的值没有变，说明他们是2个完全独立的对象。这就是深拷贝。而原型模式，本质上就是拷贝对象。
+
+6. 适配器模式：
