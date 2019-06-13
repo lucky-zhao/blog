@@ -763,4 +763,151 @@ public class Student implements Cloneable {
 ```
 innerAge的值没有变，说明他们是2个完全独立的对象。这就是深拷贝。而原型模式，本质上就是拷贝对象。
 
-6. 适配器模式：
+6. 适配器模式：将一个类的接口转换成客户希望的另外一个接口。适配器模式使得原本由于接口不兼容而不能一起工作的那些类可以一起工作。
+生活中的例子：
+* 耳机3.5mm接口，有些手机有这个接口，有些手机取消了耳机孔，只有一个typec接口，这样就需要一个转接头，这个转接头就是一个适配器。
+* 家里的插头有2孔的，3孔的。如果全是2孔插座，那么3孔的插头就需要一个转接头，这个也是适配器。
+例子：我的笔记本提供SD卡槽，可以直接插SD卡读取数据，如果我想读取手机卡TF卡里面的数据，这时就需要一个读卡器(适配器)。
+我的电脑：
+```
+public interface Computer {
+    //电脑可以直接读取SD卡
+    String readSD(SDCard sdCard);
+}
+public class ThinkpadComputer implements Computer {
+    @Override
+    public String readSD(SDCard sdCard) {
+        return sdCard.readSD();
+    }
+}
+```
+SD卡接口和实现类：
+```
+public interface SDCard {
+    //读取SD卡
+    String readSD();
+}
+public class SDCardImpl implements SDCard{
+    @Override
+    public String readSD() {
+        return "读取SD卡的信息";
+    }
+}
+```
+测试代码：
+```
+        Computer computer=new ThinkpadComputer();
+        SDCard sdCard=new SDCardImpl();
+        System.out.println(computer.readSD(sdCard));
+```
+输出`读取SD卡的信息`。现在要做个读卡器，把TF卡插入读卡器，然后在把读卡器插入电脑，就可以实现读取TF卡的数据。
+首先有个TF卡
+```
+public interface TFCard {
+    //读取TF卡
+    String readTFCard();
+}
+public class TFCardImpl implements TFCard{
+    @Override
+    public String readTFCard() {
+        return "读取TF卡的信息";
+    }
+}
+```
+适配器
+```
+public class SDAdapterTF implements SDCard {
+    private TFCard tfCard;
+
+    public SDAdapterTF(TFCard tfCard) {
+        this.tfCard = tfCard;
+    }
+
+    @Override
+    public String readSD() {
+        return tfCard.readTFCard();
+    }
+}
+```
+这个适配器的功能就是把读取SD卡的转换成读取TF卡，实现方式是：实现SD卡的接口，然后使用组合的方式在该适配器中定义了一个TF卡，然后在重写`readSD`方法，用TF卡实现具体细节。
+测试代码：
+```
+public class TTest {
+    public static void main(String[] args) {
+        //拿出电脑
+        Computer computer=new ThinkpadComputer();
+        //拿出TF卡
+        TFCard tfCard=new TFCardImpl();
+        //把TF卡插到 adapter 适配器(读卡器)
+        SDCard adapter=new SDAdapterTF(tfCard);
+        //在把 adapter 读卡器插到电脑，电脑有读取SD卡的功能。而适配器实现了SDCard，所以可以直接把适配器插到电脑上
+        System.out.println(computer.readSD(adapter));
+    }
+}
+```
+输出`读取TF卡的信息`。
+适配器使用场景：
+* 需要使用已有的类或接口，但是该类或接口不满足需求。
+* 通过接口转换，把一个类插入到另外一个类中。
+
+还有一种方式，如果一个接口中有很多方法，但是只需要实现其中某些方法就行了，其他方法用不到，这时候也可以用适配器。
+```
+public interface CommonService {
+    void a();
+    void b();
+    void c();
+    void d();
+    void e();
+    void f();
+}
+```
+实际我只要a,b,c3个方法，但是实现这个接口，就必须把这些方法都重写。
+```
+public class CommonServiceImpl implements CommonService{
+    @Override
+    public void a() {
+        //do something
+    }
+    @Override
+    public void b() {
+        //do something
+    }
+    @Override
+    public void c() {
+        //do something
+    }
+    @Override
+    public void d() {
+
+    }
+    @Override
+    public void e() {
+
+    }
+    @Override
+    public void f() {
+
+    }
+}
+```
+虽然其他几个用不到的方法可以不实现，但是代码看起来乱，没用的代码放着干嘛？这时可以用一个抽象类来实现接口。
+```
+public abstract class AdapterService implements CommonService {
+    @Override
+    public void a() {
+        //do something
+    }
+    @Override
+    public void b() {
+        //do something
+    }
+    @Override
+    public void c() {
+        //do something
+    }
+}
+```
+这样就可以实现你需要的方法。其他的方法不写也没事。`AdapterService`其实也是起到一个适配器的作用。
+
+7. 桥接模式：
+
