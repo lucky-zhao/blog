@@ -909,5 +909,112 @@ public abstract class AdapterService implements CommonService {
 ```
 这样就可以实现你需要的方法。其他的方法不写也没事。`AdapterService`其实也是起到一个适配器的作用。
 
-7. 桥接模式：
+7. 桥接模式：把抽象化与实现化解耦，使得二者可以独立变化。
+8. 过滤器模式:使用不同的标准来过滤一组对象，通过逻辑运算以解耦的方式把它们连接起来。
+9. 组合模式：把一组相似的对象当作一个单一的对象。组合模式依据树形结构来组合对象，用来表示部分以及整体层次。
+个人感觉就是常见的公司部门关系图，公司分技术部，财务部，业务部。技术部下面又有java、python。财务部下面有出纳、会计。业务部下面有销售、售后。
+```
+public class Department {
+    private String name;
+
+    private List<Department> departments;
+
+    public Department(String name) {
+        this.name = name;
+        departments = new ArrayList<>();
+    }
+
+    public void add(Department department) {
+        departments.add(department);
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public List<Department> getDepartments() {
+        return departments;
+    }
+
+    public void setDepartments(List<Department> departments) {
+        this.departments = departments;
+    }
+
+    @Override
+    public String toString() {
+        return "Department{" +
+                "name='" + name + '\'' +
+                ", departments=" + departments +
+                '}';
+    }
+}
+```
+测试
+```
+public class TTest {
+    public static void main(String[] args) {
+        Department dept = new Department("一个牛B的公司");
+
+        Department dept1 = new Department("技术部门");
+
+        Department dept2 = new Department("软件开发部门");
+
+        Department dept3 = new Department("硬件设备部门");
+
+        Department dept4 = new Department("java");
+
+        Department dept5 = new Department("python");
+
+        Department dept6 = new Department("运维");
+
+        Department dept7 = new Department("财务部门");
+
+        Department dept8 = new Department("会计");
+
+        Department dept9 = new Department("出纳");
+
+        Department dept10 = new Department("业务部门");
+
+        Department dept11 = new Department("销售");
+
+        Department dept12 = new Department("售后");
+
+        dept.add(dept1);
+        dept.add(dept7);
+        dept.add(dept10);
+
+        dept1.add(dept2);
+        dept1.add(dept3);
+
+        dept2.add(dept4);
+        dept2.add(dept5);
+
+        dept3.add(dept6);
+        dept7.add(dept8);
+        dept7.add(dept9);
+        dept10.add(dept11);
+        dept10.add(dept12);
+
+        dept.getDepartments().forEach(dep -> {
+            System.out.print(dep.getName() + ":");
+            dep.getDepartments().forEach(child -> {
+                System.out.print(child.getName() + "   ");
+
+            });
+            System.out.println();
+        });
+    }
+
+}
+```
+输出：
+```
+技术部门:软件开发部门   硬件设备部门   
+财务部门:会计   出纳   
+业务部门:销售   售后   
+```
 
