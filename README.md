@@ -4,6 +4,7 @@
 
 2019年学习目标：
 * [设计模式学习记录(未完待续)](https://github.com/lucky-zhao/blog/tree/master/20190610)
+* java多线程
 * 数据结构与算法
-* mysql
 * java虚拟机
+* mysql
