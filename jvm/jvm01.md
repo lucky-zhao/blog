@@ -5,5 +5,5 @@
 ![blockchain](https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg "区块链")
 
 <div align="center">  
-<img src="/jvm/img/jvm.jpg"/>
+<img src="/jvm/img/jvm.jpg" width="600px;"/>
 </div>
