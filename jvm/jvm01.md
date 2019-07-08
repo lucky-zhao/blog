@@ -1,6 +1,5 @@
 # jvm内存区域
 
-主要学习于<深入理解JAVA虚拟机>，注：这本书讲的都是JDK1.7之前的。后面在入手一本<揭秘JAVA虚拟机>继续深入学习一下。
 一 先看下JDK1.8前的Java虚拟机的内存区域。
 
 <!--![JVM](https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg "JVM内存区域")-->
