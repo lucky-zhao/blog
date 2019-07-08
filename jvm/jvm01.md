@@ -5,5 +5,5 @@
 <!--![avatar](https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg)-->
 
 <div align="center">  
-<img src="https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg" width="600px"/>
+<img src="/jvm/img/jvm.jpg"/>
 </div>
