@@ -53,6 +53,7 @@ Java程序需要通过栈内存上的引用堆内存上的对象。虚拟机规�
 4. **代码实现`OutOfMemoryError`异常**
 
 **堆内存溢出**
+
 设置虚拟机启动参数：`-Xms20M -Xmx20M -Xmn10M -XX:+PrintGCDetails -XX:SurvivorRatio=8`。`-Xms20m`:初始化堆内存大小20M；`-Xmx20m`:堆内存最大为20M。将堆最大内存和最小内存设置一样，可以避免自动扩展内存。`-Xmn10M`:新生代内存10M；`-XX:+PrintGCDetails`输出GC详细日志。`-XX:SurvivorRatio=8`：设置两个Survivor和Eden的比值，8 表示两个Survivor ： Eden = 2：8，每个Survivor占 1/10。
 java测试代码：
 ```java
