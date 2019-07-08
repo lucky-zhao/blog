@@ -104,10 +104,10 @@ Heap
 [参考资料](https://blog.csdn.net/qq_21383435/article/details/80702205)
 
 日志分析：
-* PSYoungGen：表示新生代，这个名称由收集器决定。PS是Parallel Scavenge收集器的缩写，它配套的新生代称为PSYoungGen，新生代又分化eden space、from space和to space这三部分
-* ParOldGen：Parallel Scavenge收集器配套的老年代
-* Metaspace： Parallel Scavenge收集器配套的永久代
-* total & used：总的空间和用掉的空间
+* `PSYoungGen`：表示新生代，这个名称由收集器决定。PS是Parallel Scavenge收集器的缩写，它配套的新生代称为PSYoungGen，新生代又分化eden space、from space和to space这三部分
+* `ParOldGen`：Parallel Scavenge收集器配套的老年代
+* `Metaspace`： Parallel Scavenge收集器配套的永久代
+* `total` & `used`：总的空间和用掉的空间
 * 第一行的`[PSYoungGen: 8192K->1016K(9216K)]`表示 GC前该内存区域已使用容量->GC后该内存区域已使用容量，后面圆括号里面的9216K为该内存区域的总容量。
 * `8192K->4543K(19456K), 0.0066378 secs`表示 GC前Java堆已使用容量->GC后Java堆已使用容量，后面圆括号里面的19456K为Java堆总容量。PSYoungGen耗时
 * `[Times: user=0.03 sys=0.02, real=0.01 secs]`表示 用户消耗的CPU时间、内核态消耗的CPU时间、操作从开始到结束所经过的墙钟时间（Wall Clock Time）
