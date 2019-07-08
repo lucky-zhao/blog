@@ -2,7 +2,7 @@
 
 一 先看下JDK1.8前的Java虚拟机的内存区域。
 
-<!--![JVM](https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg "JVM内存区域")-->
+![JVM](https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg "JVM内存区域")
 
 1. 堆内存
 对于大多数应用来说，Java堆内存(Java Heap)是Java虚拟机所管理的内存中最大的一块。堆内存是线程共享的，在虚拟机启动时创建，堆内存主要存放对象实例，也是GC主要活动区域。
