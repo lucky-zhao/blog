@@ -1,7 +1,7 @@
 # JVM内存区域
 - [Java内存区域](#一-先看下JDK1.8前的Java虚拟机的内存区域)
-    -[运行时数据区域](#二-运行时数据区域)
-    -[堆内存](#2.1-堆内存)
+- [运行时数据区域](#二-运行时数据区域)
+    - [堆内存](#21-堆内存)
 ## 一 先看下JDK1.8前的Java虚拟机的内存区域。
 
 <!--![JVM](https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg "JVM内存区域")-->
