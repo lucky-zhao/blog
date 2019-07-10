@@ -14,6 +14,16 @@
         - [堆内存溢出](#341-堆内存溢出)
         - [虚拟机栈和本地方法栈内存溢出](#342-虚拟机栈和本地方法栈内存溢出)
         - [方法区和运行时常量池溢出](#343-方法区和运行时常量池溢出)
+        - [本地直接内存溢出](#344-本地直接内存溢出)
+- [垃圾回收机制和内存分配策略](#四-垃圾回收机制和内存分配策略)
+    - [对象已死吗](#41-对象已死吗？)
+         - [引用计数算法](#411-引用计数算法)
+         - [引用计数算法](#412-可达性分析算法)
+    - [垃圾收集算法]
+        - [标记-清除算法](#421-标记-清除算法)
+        - [复制算法](#422-复制算法)
+        - [标记整理算法](#423-标记整理算法)
+        - [分代手收集算法](#424-分代手收集算法)
         
 ## 一 先看下JDK1.8前的Java虚拟机的内存区域。
 
@@ -204,18 +214,41 @@ public class ConstantPoolOOM {
 ```
 Exception in thread "main" java.lang.OutOfMemoryError: PermGen space
 ```
-运行时常量池溢出，由于常量池属于方法区，所有后面跟着`PermGen space`。
-
-而在JDK1.7及以上的环境下不会报错，while循环将一直进行下去。对这个字符串常量池String intern方法在写个例子测试。
+运行时常量池溢出，由于常量池属于方法区，所以后面跟着`PermGen space`。
+JDK1.8常量池移到了堆内存，方法区是JVM的规范，之前是用永久代来实现，JDK1.8中改成了元空间。本质上元空间和永久代类似，都是对JVM方法区的实现，不过元空间并不存在虚拟机中，而是在直接内存(本地内存)中。
+可以通过下面的例子证明JDK1.8把常量池移到了堆内存：
+```java
+/**
+ * Created by zhao
+ * -Xms5m -Xmx5m 设置堆内存容量为5M
+ */
+public class ConstantPoolOOM {
+    public static void main(String[] args) {
+        List<String> list = new ArrayList<>();
+        int i = 0;
+        while (true) {
+            list.add(String.valueOf(i++).intern());
+        }
+    }
+}
 ```
+输出：
+```
+Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
+```
+intern()方法的实现不再是在常量池中创建与此String内容相同的字符串，而改为在常量池中记录Java Heap中首次出现的该字符串的引用，并返回该引用;
+
+对这个字符串常量池String intern方法在写个例子测试。
+```java
 public class StringIntern {
     public static void main(String[] args) {
         String s1 = new StringBuilder().append("Hello").append("JVM").toString();
-        System.out.println(s1.intern() == s1);
+        System.out.println(s1.intern() == s1);//true
 
-        String s2 = new StringBuilder("ja").append("va").toString();
-        System.out.println(s2.intern() == s2);
-        
+        String s2 = new StringBuilder("Hello").append("JVM").toString();
+        System.out.println(s2.intern() == s2);//false
+
+        System.out.println(s1 == s2.intern());//true
     }
 }
 ```
@@ -224,7 +257,58 @@ public class StringIntern {
 JDK1.6中 intern()方法是这样的：
 * 如果常量池中存在相同的字符串，则返回常量池中对应字符串的引用；
 * 会把首次遇到的字符串实例复制到常量池中，返回的也是常量池中对这个字符串的引用，而由`StringBuilder`创建的字符串的引用在栈中。所以返回false；
+JDK1.8中 intern() 
+* `s1.intern() == s1`为true，当执行`s1.intern()`的时候，JVM不再把s1对应的字面量复制一份到字符串常量池中，而是在字符串常量池中存储一份s1的引用，这个引用指向堆中的字面量，所以`s1.intern() == s1`其实是同一个引用；
+* `s2.intern() == s2`为false，是因为s2.intern()发现常量池中已经存在一个指向堆中的字面量"HelloJVM"的引用，所有s2.intern()返回的引用其实和上面的s1的引用是同一个，而s2是` new StringBuilder("Hello").append("JVM").toString()`指向堆内存中的字面量"HelloJVM"，s2.intern() 和 s2指向的不是同一个对象，所以结果是false；
+* `s1 == s2.intern()`为true，验证了上面的分析；
 
 
+### 3.4.4 本地直接内存溢出
+直接内存貌似和NIO有关，但是目前一直没有接触NIO，因此先记下书中的例子，后面遇到在细研究。
+```java
+/**
+ * Created by zhao
+ * -Xms20m -Xmx20m -XX:MaxDirectMemorySize=10m
+ */
+public class DirectMemoryOOM {
+    private static final int _1MB = 1024 * 1024;
 
+    public static void main(String[] args) throws IllegalAccessException {
+        Field unsafeField = Unsafe.class.getDeclaredFields()[0];
+        unsafeField.setAccessible(true);
+        Unsafe unsafe = (Unsafe) unsafeField.get(null);
+        while (true) {
+            unsafe.allocateMemory(_1MB);
+        }
+    }
+}
+```
+报错：
+```
+Exception in thread "main" java.lang.OutOfMemoryError
+```
+## 四 垃圾回收机制和内存分配策略
 
+### 4.1 对象已死吗？
+垃圾回收机制在堆内存回收前，第一件事就是要确定哪些对象还活着，哪些对象已经死了。常用的两种方法是：引用计数算法和可达性分析算法
+### 4.1.1 引用计数算法
+给对象添加一个引用计数器，每当有一个地方引用它，计数器值就加一；相反的，当引用失效的时候，计数器值就减一；任何时刻计数器为0的对象就是不可能再被使用的。但是如果在对象循环引用的情况下，内存就不会回收；
+### 4.1.2 可达性分析算法
+通过称为"GC Roots"的对象作为起点，从这些节点开始向下搜索，搜索走过的路称为"引用链"，当一个对象到GC Roots没有任何引用链相连接的话，则证明此对象是不可用的。
+在java中可以作为GC Roots的对象包括：
+* 虚拟机栈(栈帧中的本地变量表)中的引用的对象；
+* 方法区中静态属性引用的对象；
+* 方法区中常量引用的对象；
+* 本地方法栈的本地方法(native方法)
+
+### 4.2 垃圾收集算法
+### 4.2.1 标记-清除算法
+首先标记出所有需要回收的对象，在标记完成后统一回收。主要有两个劣势：
+* 效率问题，标记和清除效率都不是很高；
+* 空间问题，标记清除后会产生大量不连续的内存碎片，太多的内存碎片空间可能会导致以后程序运行中需要分配大对象时，无法找到足够连续空间而不得不提前触发一次GC。
+### 4.2.2 复制算法
+将可用内存按容量划分为大小想等的两块From和To，当From被占满时GC将From中的存活对象按照顺序复制到To中，同时将From和To交换，这样就可以每次GC都对整个半区进行垃圾回收，内存分配上也就不用考虑内存碎片等情况。缺点是内存缩小了原来的一半。
+### 4.2.3 标记整理算法
+和标记清除算法类似，只是后续不是对内存清除，而是让所有存活的对象都向一端移动，然后直接清理掉端边界以外的内存。
+### 4.2.4 分代收集算法
+当前商业虚拟机的垃圾回收基本都用这种方法。它把内存分为新生代和老年代，这样就可以根据各个年代的特点采用最合适的方式。在新生代中的对象大部分都是朝生夕死的，只有少量存活，这时候就选用复制算法，只需要把较少的存活对象复制即可。而老年代因为对象存活率高，因此可以采用标记-清除或者标记-整理算法来回收。
