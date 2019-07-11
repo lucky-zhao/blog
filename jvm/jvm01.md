@@ -1,4 +1,4 @@
-# JVM内存区域
+# 深入理解JAVA虚拟机
 - [运行时数据区域](#二-运行时数据区域)
     - [堆内存](#21-堆内存)
     - [方法区](#22-方法区)
@@ -16,14 +16,17 @@
         - [方法区和运行时常量池溢出](#343-方法区和运行时常量池溢出)
         - [本地直接内存溢出](#344-本地直接内存溢出)
 - [垃圾回收机制和内存分配策略](#四-垃圾回收机制和内存分配策略)
-    - [对象已死吗](#41-对象已死吗？)
+    - [对象已死吗](#41-对象已死吗)
          - [引用计数算法](#411-引用计数算法)
          - [引用计数算法](#412-可达性分析算法)
     - [垃圾收集算法](#42-垃圾收集算法)
         - [标记-清除算法](#421-标记-清除算法)
         - [复制算法](#422-复制算法)
         - [标记整理算法](#423-标记整理算法)
-        - [分代手收集算法](#424-分代手收集算法)
+        - [分代收集算法](#424-分代收集算法)
+    - [看懂GC日志](#43-看懂GC日志)
+- [内存分配和回收策略](#五-内存分配和回收策略)
+    - [对象内存分配](#51-对象内存分配)
         
 ## 一 先看下JDK1.8前的Java虚拟机的内存区域。
 
@@ -31,7 +34,8 @@
 <!--<div align="center">  -->
 <!--<img src="https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg?raw=true" width="800px"/>-->
 <!--</div>-->
-
+## JDK1.8的内存划分
+![JVM](https://github.com/lucky-zhao/blog/blob/master/jvm/img/JDK1.8.png "JVM内存区域")
 ## 二 运行时数据区域
 
 ### 2.1 堆内存 
@@ -81,7 +85,7 @@ Java程序需要通过栈内存上的引用堆内存上的对象。虚拟机规�
 * 直接指针。如果使用直接指针访问，那么 Java 堆对象的布局中就必须考虑如何放置访问类型数据的相关信息，而 reference 中存储的直接就是对象的地址。
 两种对象访问方式各有优势。使用句柄来访问的最大好处是 reference 中存储的是稳定的句柄地址，在对象被移动时(垃圾回收时，对象移动是非常普遍的行为)只会改变句柄中的实例数据指针，而 reference 本身不需要修改。使用直接指针访问方式最大的好处就是速度快，它节省了一次指针定位的时间开销。
 
-### 3.4 代码实现`OutOfMemoryError`异常
+### 3.4 代码实现OutOfMemoryError异常
 
 ### 3.4.1 堆内存溢出
 
@@ -132,21 +136,6 @@ Heap
   class space    used 352K, capacity 388K, committed 512K, reserved 1048576K
 ```
 关键点：` java.lang.OutOfMemoryError: Java heap space`，堆内存溢出。
-
-[参考资料](https://blog.csdn.net/qq_21383435/article/details/80702205)
-
-日志分析：
-* `PSYoungGen`：表示新生代，这个名称由收集器决定。PS是Parallel Scavenge收集器的缩写，它配套的新生代称为PSYoungGen，新生代又分化eden space、from space和to space这三部分
-* `ParOldGen`：Parallel Scavenge收集器配套的老年代
-* `Metaspace`： Parallel Scavenge收集器配套的永久代
-* `total` & `used`：总的空间和用掉的空间
-* 第一行的`[PSYoungGen: 8192K->1016K(9216K)]`表示 GC前该内存区域已使用容量->GC后该内存区域已使用容量，后面圆括号里面的9216K为该内存区域的总容量。
-* `8192K->4543K(19456K), 0.0066378 secs`表示 GC前Java堆已使用容量->GC后Java堆已使用容量，后面圆括号里面的19456K为Java堆总容量。PSYoungGen耗时
-* `[Times: user=0.03 sys=0.02, real=0.01 secs]`表示 用户消耗的CPU时间、内核态消耗的CPU时间、操作从开始到结束所经过的墙钟时间（Wall Clock Time）
-user是用户态耗费的时间，sys是内核态耗费的时间，real是整个过程实际花费的时间。user+sys是CPU时间，每个CPU core单独计算，所以这个时间可能会是real的好几倍。
-CPU时间和墙钟时间的差别是，墙钟时间包括各种非运算的等待耗时，例如等待磁盘I/O、等待线程阻塞，而CPU时间不包括这些耗时。
-* 第三行的full gc`[Full GC (Ergonomics) [PSYoungGen: 9208K->0K(9216K)] [ParOldGen: 10237K->10211K(10240K)] 19445K->10211K(19456K), [Metaspace: 3230K->3230K(1056768K)], 0.1306755 secs] [Times: user=0.25 sys=0.00, real=0.13 secs]`表示 Young区GC前内存占用->GC后内存占用(新生代总内存大小)；Old老年代GC前内存占用->GC后内存占用(老年代总内存大小)；metaspace区GC前内存占用->GC后内存占用(元空间(方法区)总内存大小),GC用户耗时，Times:用户耗时 sys=系统时间, real=实际时间 。
-规律：**[名称：gc前内存占用-> gc后内存占用（该区内存总大小）]**。
 
 解决方案：
 * 确定是内存泄漏(Memory Leak)还是内存溢出(Memory Overflow)。如果是内存泄漏可进一步用工具查看对象到GC ROOTS的引用链，就能找到对象是通过怎样的路径与GC ROOTS相关联并导致GC无法回收。掌握了泄漏对象的类型信息以及 GC ROOTS引用链就可以比较精准的定位出泄漏代码的位置；
@@ -289,7 +278,7 @@ Exception in thread "main" java.lang.OutOfMemoryError
 ```
 ## 四 垃圾回收机制和内存分配策略
 
-### 4.1 对象已死吗？
+### 4.1 对象已死吗
 垃圾回收机制在堆内存回收前，第一件事就是要确定哪些对象还活着，哪些对象已经死了。常用的两种方法是：引用计数算法和可达性分析算法
 ### 4.1.1 引用计数算法
 给对象添加一个引用计数器，每当有一个地方引用它，计数器值就加一；相反的，当引用失效的时候，计数器值就减一；任何时刻计数器为0的对象就是不可能再被使用的。但是如果在对象循环引用的情况下，内存就不会回收；
@@ -312,3 +301,53 @@ Exception in thread "main" java.lang.OutOfMemoryError
 和标记清除算法类似，只是后续不是对内存清除，而是让所有存活的对象都向一端移动，然后直接清理掉端边界以外的内存。
 ### 4.2.4 分代收集算法
 当前商业虚拟机的垃圾回收基本都用这种方法。它把内存分为新生代和老年代，这样就可以根据各个年代的特点采用最合适的方式。在新生代中的对象大部分都是朝生夕死的，只有少量存活，这时候就选用复制算法，只需要把较少的存活对象复制即可。而老年代因为对象存活率高，因此可以采用标记-清除或者标记-整理算法来回收。
+### 4.3 看懂GC日志
+这是从上面的例子copy出来的GC日志。
+```
+[GC (Allocation Failure) [PSYoungGen: 8192K->1016K(9216K)] 8192K->4543K(19456K), 0.0066378 secs] [Times: user=0.03 sys=0.02, real=0.01 secs] 
+[GC (Allocation Failure) --[PSYoungGen: 9208K->9208K(9216K)] 12735K->19445K(19456K), 0.0117774 secs] [Times: user=0.02 sys=0.00, real=0.01 secs] 
+[Full GC (Ergonomics) [PSYoungGen: 9208K->0K(9216K)] [ParOldGen: 10237K->10211K(10240K)] 19445K->10211K(19456K), [Metaspace: 3230K->3230K(1056768K)], 0.1306755 secs] [Times: user=0.25 sys=0.00, real=0.13 secs] 
+[Full GC (Ergonomics) [PSYoungGen: 8192K->7167K(9216K)] [ParOldGen: 10211K->8959K(10240K)] 18403K->16126K(19456K), [Metaspace: 3231K->3231K(1056768K)], 0.1517721 secs] [Times: user=0.38 sys=0.00, real=0.15 secs] 
+[Full GC (Ergonomics) [PSYoungGen: 7813K->7667K(9216K)] [ParOldGen: 8959K->8959K(10240K)] 16772K->16626K(19456K), [Metaspace: 3231K->3231K(1056768K)], 0.1060525 secs] [Times: user=0.48 sys=0.00, real=0.11 secs] 
+[Full GC (Allocation Failure) Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
+	at java.util.Arrays.copyOf(Arrays.java:3210)
+	at java.util.Arrays.copyOf(Arrays.java:3181)
+	at java.util.ArrayList.grow(ArrayList.java:265)
+	at java.util.ArrayList.ensureExplicitCapacity(ArrayList.java:239)
+	at java.util.ArrayList.ensureCapacityInternal(ArrayList.java:231)
+	at java.util.ArrayList.add(ArrayList.java:462)
+	at com.miss27.record.test.HeapOOM.main(HeapOOM.java:18)
+[PSYoungGen: 7667K->7667K(9216K)] [ParOldGen: 8959K->8941K(10240K)] 16626K->16608K(19456K), [Metaspace: 3231K->3231K(1056768K)], 0.1079590 secs] [Times: user=0.36 sys=0.00, real=0.11 secs] 
+Heap
+ PSYoungGen      total 9216K, used 7939K [0x00000000ff600000, 0x0000000100000000, 0x0000000100000000)
+  eden space 8192K, 96% used [0x00000000ff600000,0x00000000ffdc0ef0,0x00000000ffe00000)
+  from space 1024K, 0% used [0x00000000ffe00000,0x00000000ffe00000,0x00000000fff00000)
+  to   space 1024K, 0% used [0x00000000fff00000,0x00000000fff00000,0x0000000100000000)
+ ParOldGen       total 10240K, used 8941K [0x00000000fec00000, 0x00000000ff600000, 0x00000000ff600000)
+  object space 10240K, 87% used [0x00000000fec00000,0x00000000ff4bb538,0x00000000ff600000)
+ Metaspace       used 3264K, capacity 4500K, committed 4864K, reserved 1056768K
+  class space    used 352K, capacity 388K, committed 512K, reserved 1048576K 
+```
+
+`[GC`和`Full GC`说明了这次垃圾回收的停顿类型，而不是用来区分新生代GC还是老年代GC的。如果有`Full`说明这次GC是发生了`Stop-The-World`的。如果是调用`System.gc()`触发的，那么会显示`[Full GC (System.gc())`。
+* `PSYoungGen`：表示新生代，这个名称由收集器决定。PS是Parallel Scavenge收集器的缩写，它配套的新生代称为PSYoungGen，新生代又分化eden space、from space和to space这三部分
+* `ParOldGen`：Parallel Scavenge收集器配套的老年代
+* `Metaspace`： Parallel Scavenge收集器配套的永久代
+* `total` & `used`：总的空间和用掉的空间
+* 第一行的`[PSYoungGen: 8192K->1016K(9216K)]`表示 GC前该内存区域已使用容量->GC后该内存区域已使用容量，后面圆括号里面的9216K为该内存区域的总容量。
+* `8192K->4543K(19456K), 0.0066378 secs`表示 GC前Java堆已使用容量->GC后Java堆已使用容量，后面圆括号里面的19456K为Java堆总容量。PSYoungGen耗时
+* `[Times: user=0.03 sys=0.02, real=0.01 secs]`表示 用户消耗的CPU时间、内核态消耗的CPU时间、操作从开始到结束所经过的墙钟时间（Wall Clock Time）
+user是用户态耗费的时间，sys是内核态耗费的时间，real是整个过程实际花费的时间。user+sys是CPU时间，每个CPU core单独计算，所以这个时间可能会是real的好几倍。
+CPU时间和墙钟时间的差别是，墙钟时间包括各种非运算的等待耗时，例如等待磁盘I/O、等待线程阻塞，而CPU时间不包括这些耗时。
+* 第三行的full gc`[Full GC (Ergonomics) [PSYoungGen: 9208K->0K(9216K)] [ParOldGen: 10237K->10211K(10240K)] 19445K->10211K(19456K), [Metaspace: 3230K->3230K(1056768K)], 0.1306755 secs] [Times: user=0.25 sys=0.00, real=0.13 secs]`表示 Young区GC前内存占用->GC后内存占用(新生代总内存大小)；Old老年代GC前内存占用->GC后内存占用(老年代总内存大小)；metaspace区GC前内存占用->GC后内存占用(元空间(方法区)总内存大小),GC用户耗时，Times:用户耗时 sys=系统时间, real=实际时间 。
+规律：**[名称：gc前内存占用-> gc后内存占用（该区内存总大小）]**。
+ 
+## 五 内存分配和回收策略
+对象主要分配在新生代的Eden区上，少数情况也可能直接分配在老年代中，分配的规则不是百分百固定的，还取决于使用的哪一种垃圾回收器和虚拟机内存相关的参数设置。
+
+## 5.1 对象内存分配
+大多数情况下对象优先分配在Eden区，如果Eden区内存不够，虚拟机将会执行一次`Minor GC`。
+* `Minor GC` 指发生在新生代的垃圾收集动作，当Eden区满时，触发`Minor GC`。新生代的对象大部分是朝生夕死的，因此`Minor GC`非常频繁，回收速度也比较快；
+* `Full GC` 是清理整个堆内存空间，有几种触发情况：
+   * 调用`System.gc()`时，系统建议执行`Full GC`，但是不一定会执行；
+   * 老年代空间不足
