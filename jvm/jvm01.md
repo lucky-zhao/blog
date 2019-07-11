@@ -29,12 +29,9 @@
     - [对象内存分配](#51-对象内存分配)
         
 ## 一 先看下JDK1.8前的Java虚拟机的内存区域。
-<img src="https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg" width="60%" alt=""/>
-<!--![JVM](https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg "JVM内存区域")-->
+![JVM](https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg "JVM内存区域")
 
-<!--<div align="center">  -->
-<!--<img src="https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg?raw=true" width="800px"/>-->
-<!--</div>-->
+
 ## JDK1.8的内存划分
 ![JVM](https://github.com/lucky-zhao/blog/blob/master/jvm/img/JDK1.8.png "JVM内存区域")
 ## 二 运行时数据区域
