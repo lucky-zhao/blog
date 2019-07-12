@@ -29,6 +29,7 @@
     - [对象内存分配](#51-对象内存分配)
         
 ## 一 先看下JDK1.8前的Java虚拟机的内存区域。
+
 ![JVM](https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg "JVM内存区域")
 
 
@@ -244,9 +245,10 @@ public class StringIntern {
 JDK1.6中 intern()方法是这样的：
 * 如果常量池中存在相同的字符串，则返回常量池中对应字符串的引用；
 * 会把首次遇到的字符串实例复制到常量池中，返回的也是常量池中对这个字符串的引用，而由`StringBuilder`创建的字符串的引用在栈中。所以返回false；
+
 JDK1.8中 intern() 
 * `s1.intern() == s1`为true，当执行`s1.intern()`的时候，JVM不再把s1对应的字面量复制一份到字符串常量池中，而是在字符串常量池中存储一份s1的引用，这个引用指向堆中的字面量，所以`s1.intern() == s1`其实是同一个引用；
-* `s2.intern() == s2`为false，是因为s2.intern()发现常量池中已经存在一个指向堆中的字面量"HelloJVM"的引用，所有s2.intern()返回的引用其实和上面的s1的引用是同一个，而s2是` new StringBuilder("Hello").append("JVM").toString()`指向堆内存中的字面量"HelloJVM"，s2.intern() 和 s2指向的不是同一个对象，所以结果是false；
+* `s2.intern() == s2`为false，是因为s2.intern()发现常量池中已经存在一个指向堆中的字面量"HelloJVM"的引用，所有s2.intern()返回的引用其实和上面的s1的引用是同一个，而s2是`new StringBuilder("Hello").append("JVM").toString()`指向堆内存中的字面量"HelloJVM"，s2.intern() 和 s2指向的不是同一个对象，所以结果是false；
 * `s1 == s2.intern()`为true，验证了上面的分析；
 
 
