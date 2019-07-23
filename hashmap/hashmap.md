@@ -112,7 +112,8 @@ public class HashMap<K,V> extends AbstractMap<K,V>
 * HashMap(int initialCapacity, float loadFactor):该构造函数的参数是初始容量和加载因子，可以调用该构造函数自定义初始容量和加载因子;
 * HashMap(Map<? extends K, ? extends V> m):传入一个map。
 其实最常用的就是直接`new HashMap()`，但是其他的构造器还是有合适的使用场景的，比如在写代码的时候，你能非常确定这个Map长度一定大于200，那么就可以直接`new HashMap(200)`，这样的好处是，如果你是使用默认构造器，默认容量是16，那么会进行好多次的扩容，才能达到你的200的长度。也算是性能优化的一种吧。
-`put()`，put方法先是调用hash函数，计算key的hash值，然后在调用putVal方法。
+
+首先看一下最重要的`put()`，put方法先是调用hash函数，计算key的hash值，然后在调用putVal方法。
 ```
    public V put(K key, V value) {
         return putVal(hash(key), key, value, false, true);
