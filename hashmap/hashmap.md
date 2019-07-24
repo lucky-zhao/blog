@@ -1,6 +1,10 @@
 # HashMap源码解析
-<!--- [HashMap数据结构](#一-HashMap数据结构)-->
-
+- [HashMap数据结构](#一-HashMap数据结构)
+    - [数组长度越大，哈希碰撞几率越低](#11-数组长度越大，哈希碰撞几率越低)
+    - [put方法](#12-put方法)
+    - [get方法](#13-get方法)
+    - [resize方法](#14-resize方法)
+    
 面试中经常会遇到hashmap，是时候来总结一波了。
 首先说数组和链表的特点，也是面试常问的ArrayList和LinkedList区别。
 * 数组存储空间是连续的，占用内存严重
@@ -108,12 +112,120 @@ public class HashMap<K,V> extends AbstractMap<K,V>
 }
 ```
 * HashMap()：这是一个没有传参的构造函数，构造函数中定义了加载因子为默认加载因子，其余值都是默认的;
-* HashMap(int initialCapacity):该构造函数的参数是初始容量，可以调用该构造函数自定义初始容量;
+* HashMap(int initialCapacity):该构造函数的参数是初始容量，可以调用该构造函数自定义初始容量，其实最终调用的还是`HashMap(int initialCapacity, float loadFactor)`这个构造器，只不过`loadFactor`是默认值罢了;
 * HashMap(int initialCapacity, float loadFactor):该构造函数的参数是初始容量和加载因子，可以调用该构造函数自定义初始容量和加载因子;
 * HashMap(Map<? extends K, ? extends V> m):传入一个map。
-其实最常用的就是直接`new HashMap()`，但是其他的构造器还是有合适的使用场景的，比如在写代码的时候，你能非常确定这个Map长度一定大于200，那么就可以直接`new HashMap(200)`，这样的好处是，如果你是使用默认构造器，默认容量是16，那么会进行好多次的扩容，才能达到你的200的长度。也算是性能优化的一种吧。
+其实最常用的就是直接`new HashMap()`，但是其他的构造器还是有合适的使用场景的，比如在写代码的时候，你能非常确定这个Map长度一定大于200，那么就可以直接`new HashMap(1000)`，这样的好处是，如果你是使用默认构造器，默认容量是16，那么会进行好多次的扩容，才能达到你需要的1000的长度。并且数组长度越大，哈希碰撞几率也越小，也算是性能优化的一种吧。
 
-首先看一下最重要的`put()`，put方法先是调用hash函数，计算key的hash值，然后在调用putVal方法。
+写个例子证明一下，数组越大，哈希碰撞越小。先把HashMap源码里的一两个方法拿出来，一会要用到。
+* 计算hash值
+```
+  static final int hash(Object key) {
+        int h;
+        return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+    }
+```
+* 传入initialCapacity，实际调用的是这个方法，打断点就可以看到，实际改的是threshold临界值。
+```
+static final int tableSizeFor(int cap) {
+    int n = cap - 1;
+    n |= n >>> 1;
+    n |= n >>> 2;
+    n |= n >>> 4;
+    n |= n >>> 8;
+    n |= n >>> 16;
+    return (n < 0) ? 1 : (n >= MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY : n + 1;
+}
+```
+## 1.1 数组长度越大，哈希碰撞几率越低
+```java
+/**
+ * Created by zhao
+ */
+public class MyHashMap {
+    public static void main(String[] args) {
+        int tabSize = 16;//指定HashMap大小，默认是16
+        Map<Integer, String> map = new HashMap<>(tabSize);
+        Integer key1 = 1;
+        Integer key2 = 17;
+        int capacity = tableSizeFor(tabSize);//计算出数组实际大小
+        map.put(key1, "aaa");
+        map.put(key2, "bbb");
+        System.out.println("key1的下标：" + (capacity - 1 & hash(key1)));
+        System.out.println("key2的下标：" + (capacity - 1 & hash(key2)));
+    }
+
+    //计算key的哈希值
+    public static int hash(Integer key) {
+        int h;
+        return (h = key.hashCode()) ^ (h >>> 16);
+    }
+
+    //根据new HashMap(1000) 指定的大小，计算出数组的实际容量
+    public static int tableSizeFor(int cap) {
+        int n = cap - 1;
+        n |= n >>> 1;
+        n |= n >>> 2;
+        n |= n >>> 4;
+        n |= n >>> 8;
+        n |= n >>> 16;
+        return (n < 0) ? 1 : (n >= 1 << 30) ? 1 << 30 : n + 1;
+    }
+}
+```
+里面的`hash`方法就是从源码里拷出来的，还有`tableSizeFor`方法也一样，只不过把常量替换成具体的值。这一段代码输出的结果是：
+```
+key1的下标：1
+key2的下标：1
+```
+说明发生了哈希碰撞，打断点跟着源码进去，也确实发现走的代码是发生碰撞后的方法体。
+
+改造一下这个测试类，指定HashMap的容量，即`new HashMap(1000)`。
+```java
+/**
+ * Created by zhao
+ */
+public class MyHashMap {
+    public static void main(String[] args) {
+        int tabSize = 1000;//指定HashMap大小，默认是16
+        Map<Integer, String> map = new HashMap<>(tabSize);
+        Integer key1 = 1;
+        Integer key2 = 17;
+        int capacity = tableSizeFor(tabSize);//计算出数组实际大小
+        map.put(key1, "aaa");
+        map.put(key2, "bbb");
+        System.out.println("key1的下标：" + (capacity - 1 & hash(key1)));
+        System.out.println("key2的下标：" + (capacity - 1 & hash(key2)));
+    }
+
+    //计算key的哈希值
+    public static int hash(Integer key) {
+        int h;
+        return (h = key.hashCode()) ^ (h >>> 16);
+    }
+
+    //根据new HashMap(1000) 指定的大小，计算出数组的实际容量
+    public static int tableSizeFor(int cap) {
+        int n = cap - 1;
+        n |= n >>> 1;
+        n |= n >>> 2;
+        n |= n >>> 4;
+        n |= n >>> 8;
+        n |= n >>> 16;
+        return (n < 0) ? 1 : (n >= 1 << 30) ? 1 << 30 : n + 1;
+    }
+}
+```
+看输出结果：
+```
+key1的下标：1
+key2的下标：17
+```
+发现当数组的容量越大,发生哈希碰撞的概率越低。也就是说同样的key在不同大小的HashMap里经过计算后得到的位置相同的概率很低，数组越大，概率越低。
+
+## 1.2 put方法
+
+看一下最重要的`put()`，put方法先是调用hash函数，计算key的hash值，然后在调用putVal方法。
 ```
    public V put(K key, V value) {
         return putVal(hash(key), key, value, false, true);
@@ -190,8 +302,35 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     }
 ```
 大致流程图如下：
-![HashMap_put](https://github.com/lucky-zhao/blog/blob/master/hashmap/img/HashMap_put.png "HashMap_put")
-
+<!--![HashMap_put](https://github.com/lucky-zhao/blog/blob/master/hashmap/img/HashMap_put.png "HashMap_put")-->
+看一下put里调用的`treeifyBin`方法：
+```
+  final void treeifyBin(Node<K,V>[] tab, int hash) {
+        int n, index; Node<K,V> e;
+        //这里的if说明了，并不是说链表的长度大于阀值就会转换成红黑树，还有个条件：数组的长度要不小于`MIN_TREEIFY_CAPACITY`，也就是说，不小于64才行,如果小于64，就扩容，不会转成红黑树。
+        //之所以这么设计，我觉得是因为 引入红黑树是为了在发生哈希碰撞时，减少查询时间，提高效率，但是这种提升相对于直接从数组中取值还是比较低的，当数组的长度小于64时，就进行扩容，这样会重新分布数据，
+        //使数据更加分散，减少碰撞几率。假设数组长度本来就只有2，直接在某个节点中使用红黑树，还不如直接扩大数组容量，这样索引的效率反而会更高。
+        //上面的例子，证明数组的长度越大，哈希碰撞几率越低。
+        if (tab == null || (n = tab.length) < MIN_TREEIFY_CAPACITY)
+            resize();
+        else if ((e = tab[index = (n - 1) & hash]) != null) {
+            TreeNode<K,V> hd = null, tl = null;
+            do {
+                TreeNode<K,V> p = replacementTreeNode(e, null);
+                if (tl == null)
+                    hd = p;
+                else {
+                    p.prev = tl;
+                    tl.next = p;
+                }
+                tl = p;
+            } while ((e = e.next) != null);
+            if ((tab[index] = hd) != null)
+                hd.treeify(tab);
+        }
+    }
+```
+## 1.3 get方法
 看完put，在来看看get方法：
 ```
  public V get(Object key) {
@@ -231,9 +370,10 @@ get方法就简单了很多。
 * 判断这个table里的第一个Node节点是否就是我们需要的，如果是直接返回，如果不是走下一步；
 * 判断是否有next节点，如果是红黑树就到红黑树里查找，如果是链表，则遍历链表找到这个key所在的位置，返回Node。
 
+## 1.4 resize方法
 在来看resize方法：
 ```
- final Node<K, V>[] resize() {
+   final Node<K, V>[] resize() {
         //用变量 oldTab 保存扩容前的table
         Node<K, V>[] oldTab = table;
         //oldCap 原数组的长度
@@ -266,40 +406,42 @@ get方法就简单了很多。
         }
         //将扩容后hashMap的临界值设置为newThr
         threshold = newThr;
+
+        //从下面开始, 初始化table或者扩容, 实际上都是通过新建一个table来完成的
         @SuppressWarnings({"rawtypes", "unchecked"})
         Node<K, V>[] newTab = (Node<K, V>[]) new Node[newCap];
         //修改hashMap的table为新建的newTab
         table = newTab;
-        //如果旧table不为空，将旧table中的元素复制到新的table中
+        // 下面这段就是把原来table里面的值全部搬到新的table里面
         if (oldTab != null) {
             //遍历旧哈希表的每个桶，将旧哈希表中的桶复制到新的哈希表中
             for (int j = 0; j < oldCap; ++j) {
                 Node<K, V> e;
                 //如果旧桶不为null
                 if ((e = oldTab[j]) != null) {
-                    //将旧桶置为null
+                    //这里注意, table中存放的只是Node的引用, 这里将oldTab[j]=null只是清除旧表的引用, 但是真正的node节点还在, 只是现在由e指向它
                     oldTab[j] = null;
                     //如果旧桶中只有一个node
                     if (e.next == null) {
                         //将e也就是oldTab[j]放入newTab中e.hash & (newCap - 1)的位置
                         newTab[e.hash & (newCap - 1)] = e;
-                    } else if (e instanceof TreeNode)//如果旧桶中的结构为红黑树
-                        ((TreeNode<K, V>) e).split(this, newTab, j, oldCap);//将树中的node分离
-                    else {//如果旧桶中的结构为链表,链表重排，jdk1.8做的一系列优化
+                    } else if (e instanceof TreeNode) {//如果旧桶中的结构为红黑树
+                        ((TreeNode<K, V>) e).split(this, newTab, j, oldCap);
+                    } else {//如果旧桶中的结构为链表
+                        //下面这段看起来有点繁琐，还是拆开看吧
                         Node<K, V> loHead = null, loTail = null;
                         Node<K, V> hiHead = null, hiTail = null;
                         Node<K, V> next;
                         do {//遍历整个链表
                             next = e.next;
-                            // 原索引
                             if ((e.hash & oldCap) == 0) {
-                                if (loTail == null)
+                                if (loTail == null) {
                                     loHead = e;
-                                else
+                                } else {
                                     loTail.next = e;
+                                }
                                 loTail = e;
                             }
-                            //原索引+oldCap
                             else {
                                 if (hiTail == null)
                                     hiHead = e;
@@ -308,12 +450,10 @@ get方法就简单了很多。
                                 hiTail = e;
                             }
                         } while ((e = next) != null);
-                        // 原索引放到bucket里
                         if (loTail != null) {
                             loTail.next = null;
                             newTab[j] = loHead;
                         }
-                        // 原索引+oldCap放到bucket里
                         if (hiTail != null) {
                             hiTail.next = null;
                             newTab[j + oldCap] = hiHead;
@@ -325,11 +465,84 @@ get方法就简单了很多。
         return newTab;
     }
 ```
-resize基本流程：
-* 先判断是扩容还是初始化
-* 计算扩容后的临界值、扩容量
-* 将临界值修改为扩容后的临界值
-* 根据扩容后的容量新建数组，然后将HashMap的table的引用指向新数组
-* 将旧的数组元素复制到table中
+单独拆开这段链表的代码：
+```
+//首先定义了4个Node引用，可以看成是2个链表 lo链表和hi链表，他们分别都有头节点和尾节点
+Node<K,V> loHead = null, loTail = null;
+Node<K,V> hiHead = null, hiTail = null;
+Node<K,V> next;
+//下面的do while循环，去掉循环体其实就是这一部分，每次拿到e的next节点，如果不为空就继续循环，达到了遍历整个链表的目的
+/*
+do {
+    next = e.next;
+} while ((e = next) != null);
+*/
+do {
+    next = e.next;
+    //判断节点在resize之后是否需要改变在数组中的位置
+    if ((e.hash & oldCap) == 0) {
+        if (loTail == null)
+            loHead = e;
+        else
+            loTail.next = e;
+        loTail = e;
+    }
+    else {
+        if (hiTail == null)
+            hiHead = e;
+        else
+            hiTail.next = e;
+        hiTail = e;
+    }
+} while ((e = next) != null);
+if (loTail != null) {
+    loTail.next = null;
+    newTab[j] = loHead;
+}
+if (hiTail != null) {
+    hiTail.next = null;
+    newTab[j + oldCap] = hiHead;
+}
+```
+在拆开，看do while循环里的逻辑:
+```
+//如果(e.hash & oldCap) == 0 为true就插到lo链表，否则插到hi链表
+ if ((e.hash & oldCap) == 0) {
+ //该节点在新表的下标位置与旧表一致都为 j 
+        //插入lo链表
+        if (loTail == null) {
+            loHead = e;
+        } else {
+            loTail.next = e;
+        }
+        loTail = e;
+    } else {//插入hi链表 该节点在新表的下标位置 j + oldCap
+        if (hiTail == null) {
+            hiHead = e;
+        } else {
+            hiTail.next = e;
+        }
+        hiTail = e;
+}
+```
+在看下面的if-else：
+```
+//将某节点中的链表分割重组为两个链表：一个需要改变位置，另一个不需要改变位置
+//如果lo链表非空, 我们就把整个lo链表放到新table的j位置上 
+if (loTail != null) {
+    loTail.next = null;
+    newTab[j] = loHead;
+}
+//如果hi链表非空, 我们就把整个hi链表放到新table的j+oldCap位置上
+if (hiTail != null) {
+    hiTail.next = null;
+    newTab[j + oldCap] = hiHead;
+}
+```
+根据上面的拆分可以知道，这段代码就是把原来的链表拆分成2个链表，并将这两个链表分别放在新的table的`j`位置和`j+oldCap`上，`j`位置就是原链表在原table中的位置，拆分的标准就是`(e.hash & oldCap) == 0`。根据这个条件, 我们将原位置的链表拆分成两个链表, 然后一次性将整个链表放到新的Table对应的位置上。
+resize特点：
+* resize发生在table初始化, 或者table中的节点数超过threshold值的时候, threshold的值一般为负载因子乘以容量大小；’
+* 每次扩容都会新建一个table, 新建的table的大小为原大小的2倍；
+* 扩容时,会将原table中的节点re-hash到新的table中, 但节点在新旧table中的位置存在一定联系: 要么下标相同, 要么相差一个oldCap(原table的大小)。
 
-明天再看其他的方法
+里面的具体算法，暂时不研究。
