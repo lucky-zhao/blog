@@ -1,6 +1,6 @@
 # HashMap源码解析
 - [HashMap数据结构](#一-HashMap数据结构)
-    - [数组长度越大，哈希碰撞几率越低](#11-数组长度越大，哈希碰撞几率越低)
+    - [数组长度越大哈希碰撞几率越低](#11-数组长度越大哈希碰撞几率越低)
     - [put方法](#12-put方法)
     - [get方法](#13-get方法)
     - [resize方法](#14-resize方法)
@@ -137,7 +137,7 @@ static final int tableSizeFor(int cap) {
     return (n < 0) ? 1 : (n >= MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY : n + 1;
 }
 ```
-## 1.1 数组长度越大，哈希碰撞几率越低
+## 1.1 数组长度越大哈希碰撞几率越低
 ```java
 /**
  * Created by zhao
@@ -301,8 +301,9 @@ key2的下标：17
         return null;
     }
 ```
-大致流程图如下：
-![HashMap_put](https://github.com/lucky-zhao/blog/blob/master/hashmap/img/HashMap_put.png "HashMap_put")
+<!--大致流程图如下：-->
+<!--![HashMap_put](https://github.com/lucky-zhao/blog/blob/master/hashmap/img/HashMap_put.png "HashMap_put")-->
+
 看一下put里调用的`treeifyBin`方法：
 ```
   final void treeifyBin(Node<K,V>[] tab, int hash) {
