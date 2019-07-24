@@ -302,7 +302,7 @@ key2的下标：17
     }
 ```
 大致流程图如下：
-<!--![HashMap_put](https://github.com/lucky-zhao/blog/blob/master/hashmap/img/HashMap_put.png "HashMap_put")-->
+![HashMap_put](https://github.com/lucky-zhao/blog/blob/master/hashmap/img/HashMap_put.png "HashMap_put")
 看一下put里调用的`treeifyBin`方法：
 ```
   final void treeifyBin(Node<K,V>[] tab, int hash) {
