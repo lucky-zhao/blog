@@ -117,6 +117,8 @@ public class HashMap<K,V> extends AbstractMap<K,V>
 * HashMap(Map<? extends K, ? extends V> m):传入一个map。
 其实最常用的就是直接`new HashMap()`，但是其他的构造器还是有合适的使用场景的，比如在写代码的时候，你能非常确定这个Map长度一定大于200，那么就可以直接`new HashMap(1000)`，这样的好处是，如果你是使用默认构造器，默认容量是16，那么会进行好多次的扩容，才能达到你需要的1000的长度。并且数组长度越大，哈希碰撞几率也越小，也算是性能优化的一种吧。
 
+## 1.1 数组长度越大哈希碰撞几率越低
+
 写个例子证明一下，数组越大，哈希碰撞越小。先把HashMap源码里的一两个方法拿出来，一会要用到。
 * 计算hash值
 ```
@@ -137,7 +139,7 @@ static final int tableSizeFor(int cap) {
     return (n < 0) ? 1 : (n >= MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY : n + 1;
 }
 ```
-## 1.1 数组长度越大哈希碰撞几率越低
+
 ```java
 /**
  * Created by zhao
