@@ -61,6 +61,7 @@ select * from sys_user su inner join sys_dept sd on su.dept_id=sd.id
 | 1 | 张三 | 1 | 1 | 技术部 |
 | 2 | 李四 | 1 | 1 | 技术部 |
 | 3 | 王五 | 2 | 2 | 行政部 |
+
 可以看到`inner join`取的是两个表中都存在的数据,和`join`是相同的效果。
 
 * left join 或者 left outer join(左外连接)
@@ -90,6 +91,7 @@ select * from sys_user su right join sys_dept sd on su.dept_id=sd.d_id
 | 2 | 李四 | 1 | 1 | 技术部 |
 | 3 | 王五 | 2 | 2 | 行政部 |
 |  |  |  | 3 | 销售部 |
+
 结果和`left join`相反，取的是右表的所有行。如果右表的某行在左表中没有匹配行，则将为左表返回空值。
 
 * full join(全连接)
@@ -108,6 +110,7 @@ select * from sys_user su right join sys_dept sd on su.dept_id=sd.d_id
 | 3 | 王五 | 2 | 2 | 行政部 |
 | 4 | 赵六 | 88 |  |  |
 |  |  |  | 3 | 销售部 |
+
 结果就是两个表的所有行，当某行在另一个表中没有匹配行时，则另一个表的选择列表列包含空值。
 
 * 左连接(左独有连接)
@@ -119,6 +122,7 @@ select * from sys_user su left join sys_dept sd on su.dept_id=sd.d_id where sd.d
 | id | name | dept_id| d_id | dept_name |
 | :------| :------ | :------ |:------ |:------ |
 | 4 | 赵六 | 88 |  |  |
+
 查询出来只有一个赵六，因为只有他的部门ID在部门表中没有。
 
 * 右连接(右独有连接)
