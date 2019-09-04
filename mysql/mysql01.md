@@ -77,6 +77,7 @@ select * from sys_user su left join sys_dept sd on su.dept_id=sd.d_id
 | 2 | 李四 | 1 | 1 | 技术部 |
 | 3 | 王五 | 2 | 2 | 行政部 |
 | 4 | 赵六 | 88 |  |  |
+
 发现把用户 赵六也查询出来了，但是他所对应的部门为空，没有ID为88的部门，查询为null。左外连接取左表所有的行，如果左表在右表中没有匹配行也会查询出来，结果都是空值。
 
 * right join 或者 right outer join(右外连接)
