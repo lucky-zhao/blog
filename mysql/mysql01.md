@@ -125,10 +125,12 @@ select * from sys_user su left join sys_dept sd on su.dept_id=sd.d_id where sd.d
 ```sql
 select * from sys_user su right join sys_dept sd on su.dept_id=sd.d_id  where su.dept_id is NULL
 ```
+结果：
 
 | id | name | dept_id| d_id | dept_name |
 | :------| :------ | :------ |:------ |:------ |
 |  |  |  | 3 | 销售部 |
+
 和上面的相反。结果就是 右表中的销售部 在左表中没有匹配项的被查出来。
 
 * 全连接去交集(取两张表中都没有匹配的数据集)
