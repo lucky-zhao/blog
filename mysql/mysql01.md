@@ -274,9 +274,9 @@ B+Tree和B-Tree非常相似，区别在于：
 1. <font color=red>Using filesort：</font>"文件内排序"，mysql无法用索引完成排序;
 2. Using temporary:使用了临时表保存中间结果，mysql在查询结果排序时使用临时表。常见于排序order by和分组查询group by;
 3. Using index:表示相应的select操作用使用覆盖索引，避免访问了表的数据行。如果同时出现using where，表名索引被用来执行索引键值的查找；如果没有同时出现using where，表名索引用来读取数据而非执行查询动作;
-4. Using where :表明使用where过滤;
-5. using join buffer:使用了连接缓存;
-6. impossible where:where子句的值总是false，不能用来获取任何元组;
+4. Using where: 表明使用where过滤;
+5. using join buffer: 使用了连接缓存;
+6. impossible where: where子句的值总是false，不能用来获取任何元组;
 7. select tables optimized away：在没有group by子句的情况下，基于索引优化Min、max操作或者对于MyISAM存储引擎优化count（*），不必等到执行阶段再进行计算，查询执行计划生成的阶段即完成优化;
 8. distinct：优化distinct操作，在找到第一匹配的元组后即停止找同样值的动作。
 
