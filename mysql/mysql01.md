@@ -21,7 +21,7 @@
     
 ## 1.1 mysql架构图
 
-![mysql](/img/mysql.png "mysql")
+![mysql](./img/mysql.png "mysql")
 
 ### 1.1.2 一条sql查询语句是怎么执行的
 
