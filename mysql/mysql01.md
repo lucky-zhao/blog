@@ -5,7 +5,7 @@
 - [mysql](#一-mysql)
     - [mysql架构图](#11-mysql架构图)
         - [一条sql查询语句是怎么执行的](#112-一条sql查询语句是怎么执行的)
-        - [innodb事务原理以及binlog和redolog的关系](#113-innodb事务原理以及binlog和redolog的关系)
+        - [innodb事务原理以及`binlog`和redolog的关系](#113-innodb事务原理以及`binlog`和redolog的关系)
     - [常用的存储引擎](#12-常用的存储引擎)
     - [七种join](#13-七种join)
     - [索引](#14-索引)
@@ -50,36 +50,35 @@
 
 ### 1.1.3 innodb事务原理以及binlog和redolog的关系
 
-上面说的是查询语句的执行过程，那如果是update这样的操作呢？比如创建了一张表`create table user(id int primary key , age int)`,如果要将id=2的这条记录的age字段的值+1，sql语句是这样：`update user set age=age+1 where id = 2`,上面说的sql语句执行过程，查询语句走的那一套流程更新语句也会同样的走一遍。与查询流程不一样的是更新流程还涉及到三个很重要的日志模块`redo log`(重做日志)、`undo log`(回滚日志)和`binlog`(归档日志)。
-redo log和binlog简单描述的对比：
+上面说的是查询语句的执行过程，那如果是update这样的操作呢？比如创建了一张表`create table user(id int primary key , age int)`,如果要将id=2的这条记录的age字段的值+1，sql语句是这样：`update user set age=age+1 where id = 2`,上面说的sql语句执行过程，查询语句走的那一套流程更新语句也会同样的走一遍。与查询流程不一样的是更新流程还涉及到三个很重要的日志模块``redo log``(重做日志)、`undo log`(回滚日志)和``binlog``(归档日志)。
+`redo log`和`binlog`简单描述的对比：
 
-* redo log是innodb存储引擎层的，用来保证事务安全，它不是所有引擎公有的；binlog是mysql的server层实现的，所有引擎都可以使用；
-* redo log是物理日志，记录的是：“在某个数据页上做了什么修改”；binlog是逻辑日志，记录的是这个语句的原始逻辑，比如"给id=2的这一行age字段加1"；
-* redo log是固定大小的，从头开始写，写到末尾就又回到开头循环写；binlog是追加写入的，意思是binlog文件写到一定大小后会切换到下一个，并不会覆盖以前的日志；
-* 两种日志作用不同，redo log是保证MySQL宕机也不会影响持久性；binlog是用于服务器可以基于时间点恢复数据(比如不小心把表里某个时间段的数据删了)，还可以用于主从复制；
+* `redo log`是innodb存储引擎层的，用来保证事务安全，它不是所有引擎公有的；`binlog`是mysql的server层实现的，所有引擎都可以使用；
+* `redo log`是物理日志，记录的是：“在某个数据页上做了什么修改”；`binlog`是逻辑日志，记录的是这个语句的原始逻辑，比如"给id=2的这一行age字段加1"；
+* `redo log`是固定大小的，从头开始写，写到末尾就又回到开头循环写；`binlog`是追加写入的，意思是`binlog`文件写到一定大小后会切换到下一个，并不会覆盖以前的日志；
+* 两种日志作用不同，`redo log`是保证MySQL宕机也不会影响持久性；`binlog`是用于服务器可以基于时间点恢复数据(比如不小心把表里某个时间段的数据删了)，还可以用于主从复制；
 
 还有个undo log，回滚日志保存了事务发生之前的数据的一个版本，可以用于回滚数据；
 
-redo log(重做日志)包括2部分：一是内存中的日志缓存(redo log buffer)，该部分日志是易失性的；二是磁盘上的重做日志文件(redo log file)，该部分日志是持久的。具体来说，当有一条记录需要更改时，innodb引擎会有下面这一套流程：
+`redo log`(重做日志)包括2部分：一是内存中的日志缓存(redo log buffer)，该部分日志是易失性的；二是磁盘上的重做日志文件(redo log file)，该部分日志是持久的。具体来说，当有一条记录需要更改时，innodb引擎会有下面这一套流程：
 1. 执行器找到引擎取出id=2的这行数据，如果id=2这行数据在内存中存在，就直接返回给执行器，否则，需要先从磁盘写入到内存，然后在返回;(跟select语句执行流程一样)
 2. 执行器拿到数据后，把值+1，得到新的一行数据，在调用引擎接口写入这行新数据；
-3. 存储引擎把记录写到缓存里(redo log buffer)然后写到redo log里，这时候redo log处于`prepare`状态，然后告知执行器执行完成了，随时可以提交事务。
-4. 执行器生成这个操作的binlog，并把binlog写入磁盘；
-5. 执行器调用引擎的提交事务的接口，把刚刚写入的redo log状态改成已提交(commit)，更新完成；
+3. 存储引擎把记录写到缓存里(`redo log` buffer)然后写到`redo log`里，这时候`redo log`处于`prepare`状态，然后告知执行器执行完成了，随时可以提交事务。
+4. 执行器生成这个操作的`binlog`，并把`binlog`写入磁盘；
+5. 执行器调用引擎的提交事务的接口，把刚刚写入的`redo log`状态改成已提交(commit)，更新完成；
 
-最后这3步其实很像分布式事务的二段式提交(不了解的可以搜一下TCC分布式事务解决方案)。那么使用这种二段式提交是怎么保证事务的安全性的呢？假设没有二段式提交，要么先写完redo log在写binlog或者反过来的顺序，这两种方式会有什么问题呢？仍然使用上面那个update语句，假设id=2的那条数据的age字段的值是0;
-1. 先写redo log在写binlog。假设在redo log写完，binlog还没有写的时候，mysql服务异常重启。redo log写完后，系统即使崩溃仍然可以把数据恢复回来，所以恢复后这行的age值为1。但是由于binlog没写完就宕机了，这时候binlog里就没有记录这个语句，之后数据备份或者恢复临时库的时候，由于binlog里没有这条语句，你会发现恢复出来的这一行age值是0，与正确的值不同；
-2. 先写binlog在写redo log。假设在binlog写完，redo log还没有写的时候，mysql服务异常重启。由于redo log还没写，崩溃后恢复以后这个事务无效，所以这行的数据age值还是0，并没有update成功，但是由于binlog里已经记录了"把id=2的行的age字段从0改成1"，所以在之后使用binlog来备份或者恢复数据的时候就会发现恢复出来的数据的age是1，与原库的值不同；
+最后这3步其实很像<font color=red>分布式事务的二段式提交</font>(不了解的可以搜一下TCC分布式事务解决方案)。那么使用这种二段式提交是怎么保证事务的安全性的呢？假设没有二段式提交，要么先写完`redo log`在写`binlog`或者反过来的顺序，这两种方式会有什么问题呢？仍然使用上面那个update语句，假设id=2的那条数据的age字段的值是0;
+1. 先写`redo log`在写`binlog`。假设在`redo log`写完，`binlog`还没有写的时候，mysql服务异常重启。`redo log`写完后，系统即使崩溃仍然可以把数据恢复回来，所以恢复后这行的age值为1。但是由于`binlog`没写完就宕机了，这时候`binlog`里就没有记录这个语句，之后数据备份或者恢复临时库的时候，由于`binlog`里没有这条语句，你会发现恢复出来的这一行age值是0，与正确的值不同；
+2. 先写`binlog`在写`redo log`。假设在`binlog`写完，`redo log`还没有写的时候，mysql服务异常重启。由于`redo log`还没写，崩溃后恢复以后这个事务无效，所以这行的数据age值还是0，并没有update成功，但是由于`binlog`里已经记录了"把id=2的行的age字段从0改成1"，所以在之后使用`binlog`来备份或者恢复数据的时候就会发现恢复出来的数据的age是1，与原库的值不同；
 
 可以看到如果不使用二段式提交，那么数据库的状态就有可能和用它的日志恢复出来的数据不同。
 
 二段式提交，可以简单看成有这两个阶段：
 
 一阶段：
-事务状态为prepare，redo log和undo log已经记录了对应的日志
-二阶段：
+事务状态为prepare，`redo log`和undo log已经记录了对应的日志
 
-binlog 完成write和fsync(把redo log数据真正的写入到数据库磁盘)后，成功，事务一定提交了，否则回滚，然后发送commit，清除undo信息，刷redo，设置事务状态为completed；
+二阶段：`binlog` 完成write和fsync(把`redo log`数据真正的写入到数据库磁盘)后，成功，事务一定提交了，否则回滚，然后发送commit，清除undo信息，刷redo，设置事务状态为completed；
 
 ## 1.2 常用的存储引擎
 mysql一般常见的存储引擎是：InnoDB、MyISAM。这两种引擎有什么特别和区别呢？
