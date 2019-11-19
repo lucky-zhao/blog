@@ -5,7 +5,7 @@
 - [mysql](#一-mysql)
     - [mysql架构图](#11-mysql架构图)
         - [一条sql查询语句是怎么执行的](#112-一条sql查询语句是怎么执行的)
-        - [innodb事务原理以及`binlog`和redolog的关系](#113-innodb事务原理以及`binlog`和redolog的关系)
+        - [innodb事务原理以及binlog和redolog的关系](#113-innodb事务原理以及`binlog`和redolog的关系)
     - [常用的存储引擎](#12-常用的存储引擎)
     - [七种join](#13-七种join)
     - [索引](#14-索引)
@@ -81,6 +81,7 @@
 二阶段：`binlog` 完成write和fsync(把`redo log`数据真正的写入到数据库磁盘)后，成功，事务一定提交了，否则回滚，然后发送commit，清除undo信息，刷redo，设置事务状态为completed；
 
 ## 1.2 常用的存储引擎
+
 mysql一般常见的存储引擎是：InnoDB、MyISAM。这两种引擎有什么特别和区别呢？
 
 | 对比项 | MyISAM | InnoDB |

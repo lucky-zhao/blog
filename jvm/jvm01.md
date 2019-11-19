@@ -40,11 +40,11 @@
         
 ## 一 先看下JDK1.8前的Java虚拟机的内存区域。
 
-![JVM](https://github.com/lucky-zhao/blog/blob/master/jvm/img/jvm.jpg "JVM内存区域")
+![JVM](./img/jvm.jpg "JVM内存区域")
 
 
 ## JDK1.8的内存划分
-![JVM](https://github.com/lucky-zhao/blog/blob/master/jvm/img/JDK1.8.png "JVM内存区域")
+![JVM](./img/JDK1.8.png "JVM内存区域")
 ## 二 运行时数据区域
 
 ### 2.1 堆内存 
@@ -465,7 +465,7 @@ public class NotInitialization {
 * 每一个层次的类加载器都是如此。因此，所有的加载请求最终都应该传送到顶层的启动类加载器中；
 * 只有当父加载器反馈自己无法完成这个加载请求时（搜索范围中没有找到所需的类），子加载器才会尝试自己去加载；
 
-![双亲委派机制](https://github.com/lucky-zhao/blog/blob/master/jvm/img/classloader.png "双亲委派机制")
+![双亲委派机制](./img/classloader.png "双亲委派机制")
 
 执行过程：
 1. 当应用程序加载器加载一个class时，它首先不会自己去尝试加载这个类，而是把类加载请求委派给父类加载器Extension ClassLoader去完成。

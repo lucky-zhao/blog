@@ -303,8 +303,9 @@ key2的下标：17
         return null;
     }
 ```
-<!--大致流程图如下：-->
-<!--![HashMap_put](https://github.com/lucky-zhao/blog/blob/master/hashmap/img/HashMap_put.png "HashMap_put")-->
+
+大致流程图如下：
+![HashMap_put](./img/HashMap_put.png "HashMap_put")
 
 看一下put里调用的`treeifyBin`方法：
 ```
