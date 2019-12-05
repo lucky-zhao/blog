@@ -15,9 +15,10 @@
     - [性能分析和优化](#15-性能分析)
         - [explain关键字](#151-explain关键字)
         - [数据类型优化](#152-数据类型优化)
-            - [常用的几种类型](#1521-常用的几种类型)   
-        - [创建高性能索引](153-创建高性能索引) 
-        - [查询性能优化](154-查询性能优化) 
+            - [常用的几种类型](#1521-常用的几种类型)  
+        - [创建高性能索引](#153-创建高性能索引) 
+        - [查询性能优化](#154-查询性能优化) 
+        - [orderby是怎么工作的](#155-orderby是怎么工作的) 
     
     
 ## 1.1 mysql架构图
@@ -300,6 +301,7 @@ B+Tree和B-Tree非常相似，区别在于：
 * 还有一个常被忽视的问题：B+Tree索引并不能找到一个给定值的具体行,B+Tree索引能找到的只是被查找数据行所在的页，然后数据库通过把页读入到内存，再在内存中进行查找，最后得到要查找的数据;
 
 * 聚簇索引与非聚簇索引
+
 补充一下，聚簇索引：索引信息和实际行信息存储在一起的，叫聚簇索引，在Innodb里的主键就是聚簇索引，也就是说用主键去查询一条记录，根据主键则能直接获取到数据；
 非聚簇索引：在B+Tree的数据结构中，叶子节点仍然是索引信息，只不过有指向对应数据块的指针；
 
@@ -474,3 +476,39 @@ mysql建议使用自增策略 做表的主键，这样可以避免页的分裂(�
 
 
 ### 1.5.4 查询性能优化
+
+### 1.5.5 orderby是怎么工作的
+
+在实际业务开发场景下肯定有需要根据指定字段排序来显示结果的需求。先建个表吧：
+```sql
+CREATE TABLE `user_test` (
+`id` int(11) NOT NULL,
+`city` varchar(16) NOT NULL,
+`name` varchar(16) NOT NULL,
+`age` int(11) NOT NULL,
+`addr` varchar(128) DEFAULT NULL,
+PRIMARY KEY (`id`),
+KEY `city` (`city`)
+) ENGINE=InnoDB;
+```
+需求：查询城市是"上海"的所有人的名字，并且按照姓名排序，返回前1000个人的姓名、年龄。sql语句可以这么写：
+```sql
+select city,name,age from user_test where city="上海" order by name limit 1000;
+```
+根据前面学的，为了避免全表扫描，给`city`字段加了索引，现在用`explain`看一下：
+
+| id | select_type | table| type | possible_keys | key | key_len | ref |rows |Extra |
+| :------| :------ | :------ |:------ |:------ | :------ | :------ |:------ |:------ |:------ |
+| 1 | SIMPLE | user_test | ref | city | city | 50 |const | 1 | Using index condition; Using where; Using filesort |
+
+`Extra`出现了`Using filesort`表示发生了文件内排序，mysql会为每个线程分配一块内存用户排序，称为:`sort_buffer`。这个sql执行过程是这样的：
+1. 初始化`sort_buffer`，确定放入name，age，city这三个字段；
+2. 从列`city`索引树找到第一个满足city="上海"的主键id；
+3. 到主键id索引树取出整行，取name，age，city三个字段的值存入`sort_buffer`；
+4. 从索引city树取下一个记录的主键id；
+5. 重复3，4步骤直到不满足条件为止；
+6. 对`sort_buffer`中的数据按照字段name做排序；
+7. 按照排序结果取前1000行返回给客户端；
+
+按name排序可能在内存中完成，也可能需要使用外部排序，这个取决于排序所需内存和参数`sort_buffer_size`。`sort_buffer`就是mysql为排序开辟的内存空间，如果要排序的数据量小于`sort_buffer_size`，排序就能在内存中完成，如果数据量大，内存放不下，就不得不利用磁盘临时文件辅助排序了。怎么解决这个呢？这样想：如果能保证从city索引树上取出来的行，天然就是按照name递增排序的话，不是就可以避免再次排序吗？所以把city索引改成(city,name)联合索引，用explain可以看到没有`Using filesort`了，提高了查询性能，那么前面有提到过覆盖索引，这个sql还可以在优化一下，可以把`city`,`name`,`age`建个联合索引，这样查询性能相比之前又有提高，`Extra`出现了`Using index`，说明用到了覆盖索引。但是加索引还是要具体情况具体分析的。
+
