@@ -1,7 +1,7 @@
 # 个人技术博客
 
 * [elk之logstash](https://github.com/lucky-zhao/blog/tree/master/20190527)
-* [elk之logstash](./docs./20190527/README.md)
+* [elk之logstash](./docs/20190527/README.md)
 * [设计模式学习记录(未完待续)](https://github.com/lucky-zhao/blog/tree/master/20190610)
 * [深入理解Java虚拟机](https://github.com/lucky-zhao/blog/blob/master/jvm/jvm01.md)
 * [HashMap源码](https://github.com/lucky-zhao/blog/blob/master/hashmap/hashmap.md)
