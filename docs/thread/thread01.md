@@ -1,641 +1,611 @@
-# Java多线程编程
+# Java多线程基础
 
-- [对象和变量的并发访问](#一-对象和变量的并发访问)
-    - [synchronized同步方法](#1.1-synchronized同步方法)
-        - [方法内的变量为线程安全](#111-方法内的变量为线程安全)
-        - [实例变量非线程安全](#112-实例变量非线程安全)
-        - [多个对象多个锁](#113-多个对象多个锁)
-        - [synchronized方法和锁对象](#114-synchronized方法和锁对象)
-        - [synchronized锁重入](#115-synchronized锁重入)
-        - [synchronized同步代码块](#116-synchronized同步代码块)
-        - [synchronized代码块的对象监视器](#117-synchronized代码块的对象监视器)
-        - [将任意对象作为对象监视器](#118-将任意对象作为对象监视器)
+- [线程的几种状态](#一-线程的几种状态)
+- [synchronized的几个例子](#二-synchronized的几个例子)
+    - [同一个对象调用两个普通的同步方法](#21-同一个对象调用两个普通的同步方法)
+    - [同一个对象调用个一个非静态的同步方法和一个非静态非同步方法](#22-同一个对象调用个一个非静态的同步方法和一个非静态非同步方法)
+    - [两个对象调用两个同步方法](#23-两个对象调用两个同步方法)
+    - [一个对象调用两个静态同步方法](#24-一个对象调用两个静态同步方法)
+- [线程虚假唤醒](#二-线程虚假唤醒)
+- [线程上下文切换](#三-线程上下文切换)
+- [死锁](#四-死锁)
+    - [怎么避免死锁](#4.1-怎么避免死锁)
 
-## 一 对象和变量的并发访问
 
-### 1.1 synchronized同步方法
-synchronized锁的几种不同情况：
-* 修饰实例方法，锁是当前实例对象，进入同步代码前要获得当前实例的锁；
-* 修饰`static`方法，锁是当前类的class对象，进入同步代码前要获得当前类对象的锁；
-* 修饰方法块，锁是括号里面的对象，对给定对象加锁，进入同步代码库前要获得给定对象的锁。
+## 一 线程的几种状态
 
-### 1.1.1 方法内的变量为线程安全
-看一下测试代码：
+线程的几种状态其实在JAVA里已经有枚举定义了：
 ```java
-public class SynchronizedTest1 {
-    public void add(String name) throws InterruptedException {
-        int num = 0;//变量定义在方法内部
-        if(name.equals("a")){
-            num=10;
-            Thread.sleep(2000);
-        }else{
-            num=20;
-        }
-        System.out.println("name:"+name+",num:"+num);
+ public enum State {
+        /**
+         * 新建状态、线程刚new出来，还没有启动
+         */
+        NEW,
+
+        /**
+         * 运行状态(这里把就绪和运行中统一叫成：RUNNABLE 状态)
+         */
+        RUNNABLE,
+
+        /**
+         * 阻塞状态
+         */
+        BLOCKED,
+
+        /**
+         * 等待状态
+         */
+        WAITING,
+
+        /**
+         * 超时等待状态，跟上一个的区别是：上一个状态是一直在等待中，除非有异常或者被唤醒，超时等待是等待一定时间后，就不等了
+         */
+        TIMED_WAITING,
+
+        /**
+         * 死亡状态，线程已经执行完毕
+         */
+        TERMINATED;
     }
 
+```
+
+## 二 synchronized的几个例子
+
+### 2.1 同一个对象调用两个普通的同步方法
+
+提示：要知道`synchronized`锁的是什么？
+
+```java
+/**
+ * @author zhao
+ * 同一个对象调用两个普通的同步方法
+ */
+public class SyncTest01 {
 
     public static void main(String[] args) {
-        SynchronizedTest1 test = new SynchronizedTest1();
+        Print print = new Print();
         new Thread(() -> {
-            try {
-                test.add("a");
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
+            print.printA();
+        }, "A").start();
+        TimeUnit.SECONDS.sleep(2);//让main线程睡2s
         new Thread(() -> {
-            try {
-                test.add("b");
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
+            print.printB();
+        }, "B").start();
+    }
+}
+
+class Print {
+    public synchronized void printA() {
+        System.out.println("A");
+    }
+
+    public synchronized void printB() {
+        System.out.println("B");
     }
 }
 ```
-输出永远都是：
-```
-name:b,num:20
-name:a,num:10
-```
-证明方法种的变量不存在线程安全不安全的问题，永远是线程安全的。这是方法内部变量的私有性造成的。
-### 1.1.2 实例变量非线程安全
-代码改动一下，把num改成实例变量：
-```java
-public class SynchronizedTest1 {
-    private int num = 0;//实例变量
+第一个例子输出结果是：先打印A 在打印B。因为只new了一个`Print`对象，`synchronized`锁的是同一个对象实例，
+并且让`main`线程睡了2秒，让A线程先获取锁(并不是因为是先new的A线程)，所以A线程走完了，B线程才会走。
 
-    public void add(String name) throws InterruptedException {
-        if (name.equals("a")) {
-            num = 10;
-            System.out.println("a set over");
-            Thread.sleep(2000);
-        } else {
-            num = 20;
-            System.out.println("b set over");
-        }
-        System.out.println("name:" + name + ",num:" + num);
+### 2.2 同一个对象调用个一个非静态的同步方法和一个非静态非同步方法
+把上一个例子稍微修改一下，去掉`printB()`方法前的`synchronized`。
+
+```java
+/**
+ * @author zhao
+ * 同一个对象调用个一个非静态的同步方法和一个非静态非同步方法
+ */
+public class SyncTest02 {
+
+    public static void main(String[] args) throws InterruptedException {
+        Print2 print = new Print2();
+        new Thread(() -> {
+            try {
+                print.printA();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }, "A").start();
+
+        TimeUnit.SECONDS.sleep(2);
+
+        new Thread(() -> {
+            try {
+                print.printB();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }, "B").start();
+
+    }
+}
+
+class Print2 {
+    public synchronized void printA() throws InterruptedException {
+        TimeUnit.SECONDS.sleep(4);//模拟业务代码，假设业务需要执行4秒
+        System.out.println("A");
     }
 
-
-    public static void main(String[] args) {
-        SynchronizedTest1 test = new SynchronizedTest1();
-        new Thread(() -> {
-            try {
-                test.add("a");
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
-        new Thread(() -> {
-            try {
-                test.add("b");
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
+    public void printB() throws InterruptedException {
+        System.out.println("B");
     }
 }
 ```
-可以看到产生了线程不安全问题：
-```
-a set over
-b set over
-name:b,num:20
-name:a,num:20
-```
-说明如果多个线程同时操作对象中的实例变量，有可能会产生线程不安全的问题。要实现线程安全只需要在`add`方法前加上关键字`synchronized`即可。
-代码：
-```java
-public class SynchronizedTest1 {
-    private int num = 0; //实例变量
+按照第一个例子可以知道A线程先获取了对象锁，本来应该是先输出A，在输出B，但是由于`printB()`是一个非同步方法，简单来说就是，你有没有获取对象锁跟我没关系，因此，`printA()`和`printB()`可以看出是异步的，所以A线程先获取额对象锁，但是B线程也可以访问`printB()`，而我们在`printA()`中设置睡眠3秒，所有执行过程大概就是这样：
+* main线程启动
+* 创建A线程并且调用`start()`启动
+* main线程睡眠2秒
+* A线程执行`printA()`方法，执行业务代码4秒(在`printA()`中的业务代码还没执行完的时候，main线程睡眠时间到了，继续往下执行，创建B线程，并且启动，调用`printB()`方法)
+* 所以先打印B，在打印A。
 
-    synchronized public void add(String name) throws InterruptedException {
-        if (name.equals("a")) {
-            num = 10;
-            System.out.println("a set over");
-            Thread.sleep(2000);
-        } else {
-            num = 20;
-            System.out.println("b set over");
-        }
-        System.out.println("name:" + name + ",num:" + num);
+### 2.3 两个对象调用两个同步方法
+
+```java
+/**
+ * @author zhao
+ * 两个对象调用两个同步方法
+ */
+public class SyncTest03 {
+
+    public static void main(String[] args) throws InterruptedException {
+        //创建两个对象实例
+        Print3 print = new Print3();
+        Print3 pt = new Print3();
+        new Thread(() -> {
+            try {
+                print.printA();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }, "A").start();
+
+
+        new Thread(() -> {
+            try {
+                pt.printB();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }, "B").start();
+    }
+}
+
+class Print3 {
+    public synchronized void printA() throws InterruptedException {
+        TimeUnit.SECONDS.sleep(4);//模拟业务代码，假设业务需要执行3秒
+        System.out.println("A");
     }
 
+    public synchronized void printB() throws InterruptedException {
+        System.out.println("B");
+    }
+}
+
+```
+
+`printA()`和`printB()`竞争的不是同一把监视器锁，所有不需要考虑锁的问题，因为在`printA()`里设了睡眠，所以先打印B，在打印A。
+
+### 2.4 一个对象调用两个静态同步方法
+
+把`printA()`和`printB()`方法都加上`static`。
+
+```java
+/**
+ * @author zhao
+ * 一个对象调用两个静态同步方法
+ */
+public class SyncTest04 {
+
+    public static void main(String[] args) throws InterruptedException {
+        Print4 print = new Print4();
+        new Thread(() -> {
+            try {
+                print.printA();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }, "A").start();
+
+        TimeUnit.SECONDS.sleep(2);//休眠main线程，让A线程先获取锁
+        new Thread(() -> {
+            try {
+                print.printB();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }, "B").start();
+    }
+}
+
+class Print4 {
+    public static synchronized void printA() throws InterruptedException {
+        System.out.println("A");
+    }
+
+    public static synchronized void printB() throws InterruptedException {
+        System.out.println("B");
+    }
+}
+
+```
+由于`printA()`和`printB()`方法都加上`static`，静态方法和静态变量会随着类的加载而加载，`synchronized`锁的不是对象实例，而是类模版`Print4.class`,也就是它们在竞争同一把锁，例子里让main线程休眠了，让A线程先抢到锁，所以结果是：先打印A，在打印B。
+
+* 补充：这个的类模版可能概念上有点模糊，还是弄个例子看看把：
+```java
+/**
+ * @author zhao
+ */
+public class Test {
     public static void main(String[] args) {
-        SynchronizedTest1 test = new SynchronizedTest1();
-        new Thread(() -> {
-            try {
-                test.add("a");
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
-        new Thread(() -> {
-            try {
-                test.add("b");
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
+        ArrayList<Integer> a=new ArrayList<>();
+        ArrayList<Integer> b=new ArrayList<>();
+        System.out.println(a == b);
+        System.out.println(a.getClass()==b.getClass());
     }
 }
 ```
-发现输出符合我们的预期：
-```
-a set over
-name:a,num:10
-b set over
-name:b,num:20
-```
-实验结论：在多个线程访问同一个对象中的同步方法时是线程安全的。上面代码因为实现了同步，所以先打印出来a，然后在打印b。
-### 1.1.3 多个对象多个锁
-在上面代码的基础上在修改一下，创建2个对象实例。
-```java
-public class SynchronizedTest1 {
-    private int num = 0; //实例变量
+先打印`false`，然后是`true`，`a==b`比较的对象地址的引用，很明显这是两个new的操作，所以返回`false`，第二个获取的是`ArrayList`的类模版，一个类在JVM中只有一个类模版，所有返回`true`。
 
-    synchronized public void add(String name) throws InterruptedException {
-        if (name.equals("a")) {
-            num = 10;
-            System.out.println("a set over");
-            Thread.sleep(2000);
-        } else {
-            num = 20;
-            System.out.println("b set over");
+通过上面几个例子应该可以对`synchronized`的使用有一定的了解。主要是看到底锁的是哪个锁。
+
+
+## 二 线程虚假唤醒
+
+举个例子，简单的生产者消费者。
+
+````java
+/**
+ * @author zhao
+ * 车票资源类，简单模拟 生产者 生产出一张票，消费者就卖掉
+ */
+public class Ticket {
+    private int number = 0;
+
+    /**
+     * 生产票
+     *
+     * @throws InterruptedException
+     */
+    public synchronized void incr() throws InterruptedException {
+        if (number != 0) {//当票的数量不等于0，说明还有票，就不用生产票
+            this.wait();
         }
-        System.out.println("name:" + name + ",num:" + num);
+        number++;//如果票==0，则生产一张票
+        System.out.println(Thread.currentThread().getName() + "生产了：" + number + "张票");
+        this.notifyAll();//唤醒其他线程
     }
 
-    public static void main(String[] args) {
-        SynchronizedTest1 test = new SynchronizedTest1();
-        SynchronizedTest1 test2 = new SynchronizedTest1();
-        new Thread(() -> {
-            try {
-                test.add("a");
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
-        new Thread(() -> {
-            try {
-                test2.add("b");
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
+    /**
+     * 卖票
+     *
+     * @throws InterruptedException
+     */
+    public synchronized void decr() throws InterruptedException {
+        if (number == 0) {//当票数量==0的时候，不能卖票了，进入wait状态
+            this.wait();
+        }
+        number--;//当票数量不等于0，则卖出去一张票
+        System.out.println(Thread.currentThread().getName() + "卖出后剩余：" + number + "张票");
+        this.notifyAll();//唤醒其他线程
     }
 }
-```
-输出
-```
-a set over
-b set over
-name:b,num:20
-name:a,num:10
-```
-发现设置的num值是没有问题的，但是打印的顺序缺乱了。这是因为`synchronized`取的锁都是对象锁，而不是一段代码或者函数当作锁，哪个线程先执行，那么这个线程就先获取到这个方法的对象锁，其他线程就处于等待状态，前提是多个线程访问同一个对象。
-### 1.1.4 synchronized方法和锁对象
-为了证明上面的代码锁的是对象，写了个测试用例
+
+````
+
+测试类：创建两个线程，A线程生产，B线程消费
+
 ```java
-public class MyObject {
-    public void funA() throws InterruptedException {
-        System.out.println("funA方法运行，线程名："+Thread.currentThread().getName());
-        Thread.sleep(2000);
-        System.out.println("end..");
-    }
-    
+/**
+ * @author zhao 线程虚假唤醒
+ */
+public class TestTicket {
     public static void main(String[] args) {
-        MyObject object=new MyObject();
+        Ticket ticket=new Ticket();
+        //A线程生产票
         new Thread(()->{
-            try {
-                object.funA();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            for (int i = 0; i < 10; i++) {
+                try {
+                    ticket.incr();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         },"A").start();
+
+        //B线程卖票
         new Thread(()->{
-            try {
-                object.funA();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            for (int i = 0; i < 10; i++) {
+                try {
+                    ticket.decr();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         },"B").start();
+
     }
 }
 
 ```
-输出：
-```
-funA方法运行，线程名：A
-funA方法运行，线程名：B
-end..
-end..
-```
-这时候并没有同步，两个线程同时进入方法。那么加上同步锁试试。
-```java
-public class MyObject {
-    synchronized public void funA() throws InterruptedException {
-        System.out.println("funA方法运行，线程名：" + Thread.currentThread().getName());
-        Thread.sleep(2000);
-        System.out.println("end..");
-    }
+执行结果：
 
+`
+A生产了：1张票
+B卖出后剩余：0张票
+A生产了：1张票
+B卖出后剩余：0张票
+A生产了：1张票
+B卖出后剩余：0张票
+A生产了：1张票
+B卖出后剩余：0张票
+A生产了：1张票
+B卖出后剩余：0张票
+A生产了：1张票
+B卖出后剩余：0张票
+A生产了：1张票
+B卖出后剩余：0张票
+A生产了：1张票
+B卖出后剩余：0张票
+A生产了：1张票
+B卖出后剩余：0张票
+A生产了：1张票
+B卖出后剩余：0张票
+`
+看起来没啥问题，但是如果多个线程生产，多个线程消费呢？修改测试类，多加了两个线程，A和B生产，C和D线程消费。
+
+```java
+/**
+ * @author zhao 线程虚假唤醒
+ */
+public class TestTicket {
     public static void main(String[] args) {
-        MyObject object = new MyObject();
-        new Thread(() -> {
-            try {
-                object.funA();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }, "A").start();
-        new Thread(() -> {
-            try {
-                object.funA();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }, "B").start();
-    }
-}
-
-```
-输出：
-```
-funA方法运行，线程名：A
-end..
-funA方法运行，线程名：B
-end..
-
-```
-这才是方法正常调用的结果，说明`synchronized`锁修饰的方法一定是排队进行的。那如果一个类有两个方法，一个实现了同步，一个普通方法，线程A访问了同步方法，线程B还可以访问另外一个普通方法吗？写个测试代码：
-```java
-public class MyObject {
-    //funA 实现了同步
-    synchronized public void funA() throws InterruptedException {
-        System.out.println("funA方法运行，线程名：" + Thread.currentThread().getName());
-        Thread.sleep(2000);
-        System.out.println("funA end");
-    }
-    //funB 普通方法
-    public void funB() throws InterruptedException {
-        System.out.println("funB方法运行，线程名：" + Thread.currentThread().getName());
-        Thread.sleep(2000);
-        System.out.println("funB end.. ");
-    }
-    public static void main(String[] args) {
-        MyObject object = new MyObject();
-        new Thread(() -> {
-            try {
-                object.funA();//调用funA
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }, "A").start();
-        new Thread(() -> {
-            try {
-                object.funB();//调用funB
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }, "B").start();
-    }
-}
-
-```
-
-输出：
-```
-funA方法运行，线程名：A
-funB方法运行，线程名：B
-funA end
-funB end.. 
-```
-虽然线程A先持有了对象锁，但是线程B完全可以调用非`synchronized`的方法。如果给方法B也加上同步呢？
-```java
-public class MyObject {
-    //funA 实现了同步
-    synchronized public void funA() throws InterruptedException {
-        System.out.println("funA方法运行，线程名：" + Thread.currentThread().getName());
-        Thread.sleep(2000);
-        System.out.println("funA end");
-    }
-    //funB 普通方法
-    synchronized public void funB() throws InterruptedException {
-        System.out.println("funB方法运行，线程名：" + Thread.currentThread().getName());
-        Thread.sleep(2000);
-        System.out.println("funB end.. ");
-    }
-    public static void main(String[] args) {
-        MyObject object = new MyObject();
-        new Thread(() -> {
-            try {
-                object.funA();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }, "A").start();
-        new Thread(() -> {
-            try {
-                object.funB();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }, "B").start();
-    }
-}
-```
-输出：
-```
-funA方法运行，线程名：A
-funA end
-funB方法运行，线程名：B
-funB end.. 
-```
-证明是同步调用的。结论：
-* A线程先持有object对象的锁，B线程可以以异步的方式调用object对象中非`synchronized`的方法；
-* A线程先持有object对象的锁，B线程如果在这时调用object中的`synchronized`方法则需要等待，也就是同步。
-### 1.1.5 synchronized锁重入
-关键字`synchronized`拥有锁重入功能，也就是使用`synchronized`时，当一个线程的到一个对象锁后，再次请求此对象锁时是可以再次得到该对象的锁。
-```java
-public class Service {
-    synchronized public void fun1() {
-        System.out.println("fun1");
-        fun2();
-    }
-
-    synchronized public void fun2() {
-        System.out.println("fun2");
-        fun3();
-    }
-
-    synchronized public void fun3() {
-        System.out.println("fun3");
-    }
-
-    public static void main(String[] args) {
-        Service service = new Service();
-        new Thread(() -> {
-            service.fun1();
-        }).start();
-    }
-}
-```
-输出：
-```
-fun1
-fun2
-fun3
-```
-可重入锁的概念是：自己可以再次获取自己的内部锁，比如一个线程获取了某个对象锁，这个锁还没有释放，当它想要再次获取这个对象锁的时候是可以获取到的。可重入锁也至此父子类继承环境。
-```java
-public class TTest {
-    public static void main(String[] args) {
-        new Thread(() -> {
-            SubClass subClass = new SubClass();
-            subClass.subFun();
-        }).start();
-    }
-}
-
-class SubClass extends SuperClass {
-    synchronized public void subFun() {
-        try {
-            while (a > 0) {
-                a--;
-                System.out.println("subclass a=" + a);
-                Thread.sleep(1000);
-                super.superFun();
-            }
-        } catch (Exception e) {
-
-        }
-    }
-}
-
-class SuperClass {
-    public int a = 10;
-
-    public void superFun() throws InterruptedException {
-        a--;
-        System.out.println("superClass  a=" + a);
-        Thread.sleep(1000);
-    }
-}
-```
-输出结果：
-```
-subclass a=9
-superClass  a=8
-subclass a=7
-superClass  a=6
-subclass a=5
-superClass  a=4
-subclass a=3
-superClass  a=2
-subclass a=1
-superClass  a=0
-```
-说明父子继承关系时，子类是完全可以通过"可重入锁"调用父类的同步方法。
-### 1.1.6 synchronized同步代码块
-用关键字`synchronized`修饰方法时，一个线程调用这个同步方法，如果这个方法执行时间很长，那么其他线程必须等待比较长的时间，这样的情况，可以使用同步代码块来解决。
-```java
-public class Task {
-    public void doLongTimeTask() {
-        try {
-            System.out.println("当前线程："+Thread.currentThread().getName()+"，正在执行一个时间较长的任务");
-            Thread.sleep(2000);
-
-            synchronized (this) {
-                System.out.println("当前线程："+Thread.currentThread().getName()+"，执行同步代码块");
-                Thread.sleep(1000);
-            }
-            System.out.println("当前线程："+Thread.currentThread().getName()+"，执行完毕");
-        } catch (Exception e) {
-
-        }
-    }
-    
-    public static void main(String[] args) {
-        Task task = new Task();
-        new Thread(() -> {
-            task.doLongTimeTask();
-        }, "A").start();
-        new Thread(() -> {
-            task.doLongTimeTask();
-        }, "B").start();
-    }
-}
-
-```
-输出：
-```
-当前线程：A，正在执行一个时间较长的任务
-当前线程：B，正在执行一个时间较长的任务
-当前线程：A，执行同步代码块
-当前线程：A，执行完毕
-当前线程：B，执行同步代码块
-当前线程：B，执行完毕
-```
-结论：当一个线程访问`synchronized`同步代码块的时候，另外的线程仍然可以访问该对象中非`synchronized(this)`的代码。在用一个更直观的例子试试，证明一半同步，一半异步。
-```java
-public class Task {
-    public void doLongTimeTask() {
-        for (int i = 0; i < 10; i++) {
-            System.out.println("非同步方法执行，线程名："+Thread.currentThread().getName()+",i="+i);
-        }
-
-        synchronized (this){
+        Ticket ticket=new Ticket();
+        //A线程生产票
+        new Thread(()->{
             for (int i = 0; i < 10; i++) {
-                System.out.println("同步代码块执行，线程名："+Thread.currentThread().getName()+",i="+i);
+                try {
+                    ticket.incr();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
-        }
-    }
+        },"A").start();
 
-    public static void main(String[] args) {
-        Task task = new Task();
-        new Thread(() -> {
-            task.doLongTimeTask();
-        }, "A").start();
-        new Thread(() -> {
-            task.doLongTimeTask();
-        }, "B").start();
+        //B线程生产票
+        new Thread(()->{
+            for (int i = 0; i < 10; i++) {
+                try {
+                    ticket.incr();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        },"B").start();
+
+        //C线程卖票
+        new Thread(()->{
+            for (int i = 0; i < 10; i++) {
+                try {
+                    ticket.decr();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        },"C").start();
+
+        //D线程卖票
+        new Thread(()->{
+            for (int i = 0; i < 10; i++) {
+                try {
+                    ticket.decr();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        },"D").start();
+
     }
 }
 ```
-输出：
-```
-非同步方法执行，线程名：A,i=0
-非同步方法执行，线程名：A,i=1
-非同步方法执行，线程名：B,i=0
-非同步方法执行，线程名：B,i=1
-非同步方法执行，线程名：B,i=2
-非同步方法执行，线程名：B,i=3
-非同步方法执行，线程名：B,i=4
-非同步方法执行，线程名：B,i=5
-非同步方法执行，线程名：B,i=6
-非同步方法执行，线程名：B,i=7
-非同步方法执行，线程名：B,i=8
-非同步方法执行，线程名：B,i=9
-同步代码块执行，线程名：B,i=0
-同步代码块执行，线程名：B,i=1
-同步代码块执行，线程名：B,i=2
-同步代码块执行，线程名：B,i=3
-同步代码块执行，线程名：B,i=4
-同步代码块执行，线程名：B,i=5
-同步代码块执行，线程名：B,i=6
-同步代码块执行，线程名：B,i=7
-同步代码块执行，线程名：B,i=8
-同步代码块执行，线程名：B,i=9
-非同步方法执行，线程名：A,i=2
-非同步方法执行，线程名：A,i=3
-非同步方法执行，线程名：A,i=4
-非同步方法执行，线程名：A,i=5
-非同步方法执行，线程名：A,i=6
-非同步方法执行，线程名：A,i=7
-非同步方法执行，线程名：A,i=8
-非同步方法执行，线程名：A,i=9
-同步代码块执行，线程名：A,i=0
-同步代码块执行，线程名：A,i=1
-同步代码块执行，线程名：A,i=2
-同步代码块执行，线程名：A,i=3
-同步代码块执行，线程名：A,i=4
-同步代码块执行，线程名：A,i=5
-同步代码块执行，线程名：A,i=6
-同步代码块执行，线程名：A,i=7
-同步代码块执行，线程名：A,i=8
-同步代码块执行，线程名：A,i=9
-```
-### 1.1.7 synchronized代码块的对象监视器
-在使用`synchronized (this)`的时候，当一个线程访问`synchronized (this)`同步代码块时，其他线程对这个对象里其他的所有的`synchronized (this)`代码块的访问，是同步的、阻塞的，这说明`synchronized `是对象监视器。
-这说明synchronized同步方法或synchronized(this)  同步代码块分别有两种作用。
-1. synchronized同步方法
-* 对其他synchronized同步方法或`synchronized (this)`同步代码块呈阻塞状态；
-* 同一时间只有一个线程可以执行synchronized同步方法中的代码。
-2. synchronized(this)同步代码块
-* 对其他synchronized同步方法或`synchronized (this)`同步代码块呈阻塞状态。
-* 同一时间只有一个线程可以执行`synchronized (this)`同步代码块中的代码。
+
+结果：
+
+`
+A生产了：1张票
+C卖出后剩余：0张票
+B生产了：1张票
+A生产了：2张票
+B生产了：3张票
+C卖出后剩余：2张票
+C卖出后剩余：1张票
+C卖出后剩余：0张票
+B生产了：1张票
+A生产了：2张票
+D卖出后剩余：1张票
+D卖出后剩余：0张票
+B生产了：1张票
+C卖出后剩余：0张票
+B生产了：1张票
+D卖出后剩余：0张票
+A生产了：1张票
+D卖出后剩余：0张票
+B生产了：1张票
+C卖出后剩余：0张票
+B生产了：1张票
+D卖出后剩余：0张票
+A生产了：1张票
+D卖出后剩余：0张票
+B生产了：1张票
+C卖出后剩余：0张票
+B生产了：1张票
+D卖出后剩余：0张票
+A生产了：1张票
+D卖出后剩余：0张票
+B生产了：1张票
+C卖出后剩余：0张票
+D卖出后剩余：-1张票
+D卖出后剩余：-2张票
+A生产了：-1张票
+C卖出后剩余：-2张票
+C卖出后剩余：-3张票
+A生产了：-2张票
+`
+出现了问题，按照我们的想法应该是生产一张票然后卖出一张票的。但是数据出现问题了。明明在代码里加了if判断的
+` 
+if (number != 0) {//当票的数量不等于0，说明还有票，就不用生产票
+  this.wait();
+}
+
+if (number == 0) {//当票数量==0的时候，不能卖票了，进入wait状态
+  this.wait();
+}
+
+`
+
+解决方案就是把if判断换成while，这个在javaAPI里也确实写到了：
+`
+当前的线程必须拥有该对象的显示器。
+
+此方法使当前线程（称为T ）将其放置在该对象的等待集中，然后放弃对该对象的任何和所有同步声明。 线程T变得禁用线程调度目的，并且休眠，直到发生四件事情之一：
+
+一些其他线程调用该对象的notify方法，并且线程T恰好被任意选择为被唤醒的线程。
+某些其他线程调用此对象的notifyAll方法。
+一些其他线程interrupts线程T。
+指定的实时数量已经过去，或多或少。 然而，如果timeout为零，则不考虑实时，线程等待直到通知。
+然后从该对象的等待集中删除线程T ，并重新启用线程调度。 然后它以通常的方式与其他线程竞争在对象上进行同步的权限; 一旦获得了对象的控制，其对对象的所有同步声明就恢复到现状 - 也就是在调用wait方法之后的情况。 线程T然后从调用wait方法返回。 因此，从返回wait方法，对象和线程的同步状态T正是因为它是当wait被调用的方法。
+线程也可以唤醒，而不会被通知，中断或超时，即所谓的虚假唤醒 。 虽然这在实践中很少会发生，但应用程序必须通过测试应该使线程被唤醒的条件来防范，并且如果条件不满足则继续等待。 换句话说，等待应该总是出现在循环中，就像这样：
+
+  synchronized (obj) {
+         while (<condition does not hold>)
+             obj.wait(timeout);
+         ... // Perform action appropriate to condition
+     } 
+（有关此主题的更多信息，请参阅Doug Lea的“Java并行编程（第二版）”（Addison-Wesley，2000）中的第3.2.3节或Joshua Bloch的“有效Java编程语言指南”（Addison- Wesley，2001）。
+`
+
+也就是说，线程有可能没有通过`notifyAll`方法就被唤醒，解决方案就是把if换成while用循环去判断，具体为什么会造成虚假唤醒？网上都是说的不清不楚的，javaAPI里提到道格李的书里有，我过两天买个看看，这里先记得有这么个事，以及如果解决就好。
+
+## 三 线程上下文切换
+
+使用多线程是为了充分利用cpu资源，但是线程数不是越多越好，因为创建、销毁多线程以及上下文切换也是会消耗资源的。每个cpu核心同一时刻只能被一个线程使用，为了让用户感觉是多线程同时执行，cpu资源分配采用时间片轮转的策略。(时间片指：cpu给各个程序分配的时间，每个线程被分配一个时间段，也就是所谓的时间片)。线程在时间片内占用cpu资源执行任务，当前线程使用完时间片后，就会处于就绪状态并让出cpu给其他线程占用，这就是上下文切换。JVM中的程序计数器会记录线程执行到什么位置，等该线程持有cpu资源的时候，可以从上次断开的地方继续执行下去。上下文切换一般有两种情况：
+
+* 让步式上下文切换：锁竞争越激烈，上下文切换越多。简单来说，如果有5个线程，cpu分5个时间片，假设每个线程可以分配200毫秒，但是由于高并发，线程数很多，时间片也会变多，每个线程分配到的时间片就会更少，造成更加频繁的上下文切换；
+* cpu给线程分配的时间片用完了或者线程被中断
+
+怎么避免或者尽可能少的造成上下文切换呢？
+
+* 无锁：既然锁的争抢会造成性能消耗，那尽量不要让资源变成争抢的对象不就行了，比如把要操作的数据按照一定的方式分块，每个线程处理各自数据块，最后在整合，比如`LongAdder`类将对单一变量的CAS操作分散为对数组cells中多个元素的CAS操作，取值时进行求和。
+* CAS算法(compare and swap)：
+
+它包含3个参数CAS(V,E,N)。V表示要更新的变量，E表示预期值，N表示新值。当且仅当V值等于E值时，才会将V的值设为N，如果V值和E值不同，则说明已经有其他线程做了更新；
+ 
+* 合理控制线程数；
+
+## 四 死锁
+
+死锁是指两个或者两个以上的线程在执行过程中，因争抢资源而造成的互相等待的现象，在没有外力作用下，这些线程会一直互相等待而无法继续运行下去。
+
+产生死锁的四个条件：
+
+* 互斥条件：指资源已经被一个线程占用，如果此时还有其他线程请求该资源，则请求者只能等待，直到占用资源的线程释放该资源；
+* 请求并持有条件：指一个线程已经持有了至少一个资源，但是又提出新的资源请求，而新资源已被其他线程占用，所以当前线程会阻塞，而且阻塞的同时并不能释放自己已经持有的资源；
+* 不可剥夺条件：进程已获得的资源，在末使用完之前，不能被其他线程抢占；
+* 环路等待条件：比如线程t0 t1 t2，t0在等待t1占用的资源，而t1在等待t2占用的资源，t2在等待t0占用的资源。
+
+死锁示例：
+
 ```java
-public class ObjectService {
-
-    public void funA() {
-        try {
-            synchronized (this) {
-                System.out.println("A 执行开始");
-                Thread.sleep(2000);
-                System.out.println("A 执行结束");
-            }
-        } catch (Exception e) {
-
-        }
-    }
-
-    public void funB() {
-        System.out.println("B 执行开始");
-        System.out.println("B 执行结束");
-    }
+/**
+ * @author zhao 死锁
+ */
+public class DeadLockTest {
+    private static Object objectA = new Object();
+    private static Object objectB = new Object();
 
     public static void main(String[] args) {
-        ObjectService objectService = new ObjectService();
         new Thread(() -> {
-            objectService.funA();
-        }, "A").start();//线程A调用同步代码块
-        new Thread(() -> {
-            objectService.funB();
-        }, "B").start();//线程B调用非同步代码块
-    }
-}
-```
-输出：
-```
-A 执行开始
-B 执行开始
-B 执行结束
-A 执行结束
-```
-发现 A线程执行funA方法的时候，其他线程依然能访问非`synchronized`的方法，不是同步的。如果把funB也加上同步代码块的话，试试
-```java
-public class ObjectService {
-
-    public void funA() {
-        try {
-            synchronized (this) {
-                System.out.println("A 执行开始");
-                Thread.sleep(2000);
-                System.out.println("A 执行结束");
+            synchronized (objectA) {
+                System.out.println("获取了A资源");
+                try {
+                    TimeUnit.SECONDS.sleep(1);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("正在等待获取B资源");
+                synchronized (objectB) {
+                    System.out.println("获取了B资源");
+                }
             }
-        } catch (Exception e) {
 
-        }
-    }
+        },"t1").start();
 
-    public void funB() {
-        synchronized (this) {
-            System.out.println("B 执行开始");
-            System.out.println("B 执行结束");
-        }
-    }
-
-    public static void main(String[] args) {
-        ObjectService objectService = new ObjectService();
         new Thread(() -> {
-            objectService.funA();
-        }, "A").start();//线程A调用同步代码块
-        new Thread(() -> {
-            objectService.funB();
-        }, "B").start();//线程B调用非同步代码块
+            synchronized (objectB) {
+                System.out.println("获取了B资源");
+                try {
+                    TimeUnit.SECONDS.sleep(1);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("正在等待获取A资源");
+                synchronized (objectA) {
+                    System.out.println("获取了A资源");
+                }
+            }
+        },"t2").start();
     }
 }
-```
-输出：
-```
-A 执行开始
-A 执行结束
-B 执行开始
-B 执行结束
-```
-可以发现他是同步的，证明了上面的观点是对的。
 
-### 1.1.8 将任意对象作为对象监视器
+```
+
+控制台打印：
+`
+获取了A资源
+获取了B资源
+正在等待获取A资源
+正在等待获取B资源
+
+`
+
+发现程序一直都没有退出，两个线程都在等待对象释放资源，造成死锁，看看这个例子是怎么满足上面的4个条件的。
+
+1. `objectA`和`objectB`是互斥资源，当t1线程获取了`objectA`后，t2线程必须等他释放，否则阻塞；
+2. t1线程首先获得了`objectA`锁然后在请求获取`objectB`锁，满足请求并持有条件；
+3. `objectA`被t1持有后不会被其他线程掠夺走，资源的不可剥夺性；
+4. t1持有`objectA`，并等待`objectB`，而持有`objectB`的t2线程在等待持有`objectA`的t1线程，构成环形条件。
+
+### 4.1 怎么避免死锁
+
+1. 保证加锁顺序
+
+上面的例子，t1线程是要先获得`objectA`锁，然后在获取`objectB`锁，而t2线程是先获得`objectB`在获取`objectA`，这样就会死锁，因此只要保证所有的线程都是按照相同的顺序加锁，就不会出现死锁。修改t2线程：
+
+`
+new Thread(() -> {
+    synchronized (objectA) {
+        System.out.println("获取了B资源");
+        try {
+            TimeUnit.SECONDS.sleep(1);
+            System.out.println("正在等待获取A资源");
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        synchronized (objectB) {
+            System.out.println("获取了A资源");
+        }
+    }
+}).start();
+
+`
+
+这样两个线程获取锁的顺序相同，都先抢`objectA`，只有抢到了`objectA`才有抢`objectB`的资格，而其他没有抢到`objectA`的线程，则阻塞，等t1执行完之后在尝试获取`objectA`。这种方式可以有效的避免死锁，但是需要提前知道所有的锁，并对锁做适当的排序，所以具体还是看业务情况，只能说这是一种方案。
+
+2. 加锁时限
+
+这个比较简单，也好理解，就是在尝试获取锁的时候加一个超时时间，这也就意味着在尝试获取锁的过程中若超过了这个时限该线程则放弃对该锁请求，加锁超时后可以先继续运行干点其它事情，再回头来重复之前加锁的逻辑，比如Lock接口里的`tryLock(long time, TimeUnit unit)`。
+
+3. 死锁检测
+
+每当一个线程获得了锁，会在线程和锁相关的数据结构中比如map将其记下。除此之外，每当有线程请求锁，也需要记录在这个数据结构中，当一个线程请求锁失败时，这个线程可以遍历锁的关系图看看是否有死锁发生。例如，线程A请求锁7，但是锁7这个时候被线程B持有，这时线程A就可以检查一下线程B是否已经请求了线程A当前所持有的锁。如果线程B确实有这样的请求，那么就是发生了死锁。
