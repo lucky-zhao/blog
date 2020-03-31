@@ -7,6 +7,7 @@
 * [mysql](./docs/mysql/mysql01.md)
 ## 并发编程
 * [并发基础](./docs/thread/thread01.md)
+* [AQS分析](./docs/thread/aqs.md)
 * 数据结构与算法
 
 <!--* [Java多线程](https://github.com/lucky-zhao/blog/blob/master/thread/thread01.md)-->
