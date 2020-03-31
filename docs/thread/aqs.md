@@ -4,6 +4,10 @@
     - [什么是CAS](#11-什么是CAS)    
     - [什么是自旋锁](#12-什么是自旋锁)    
     - [AQS源码](#13-AQS源码)    
+        - [概览](#131-概览)
+        - [waitStatus状态](#132-waitStatus状态)
+        - [acquire方法](#133-acquire方法)
+        - [addWaiter方法](#134-addWaiter方法)
     
 
 ## 一 AQS
@@ -127,7 +131,7 @@ private transient volatile Node tail;
 
 AQS定义两种资源共享方式：Exclusive（独占，只有一个线程能执行，如ReentrantLock）和Share（共享，多个线程可同时执行，如Semaphore/CountDownLatch，AQS帮我们实现了线程加锁失败入队、唤醒、出队的操作，而具体怎么加锁和解锁不同的实现类有自己不同的实现，比如公平锁和非公平锁的加锁方式就不同.
 
-###1.3.2 waitStatus状态
+### 1.3.2 waitStatus状态
 
 Node节点是对每一个加锁失败的线程的封装对象，里面包含了上一个节点、下一个节点和当前节点的线程以及线程的状态：是否被取消、是否需要被唤醒等等，在Node对象里用`waitStatus`字段表示。
 
@@ -148,7 +152,7 @@ static final int PROPAGATE = -3;
 volatile int waitStatus;
 ```
 
-###1.3.2 acquire(int)方法
+### 1.3.3 acquire方法
 
 该方法是获取共享资源的顶层方法，里面调用了`tryAcquire`方法，`tryAcquire`方法是用来尝试获取资源，但是在AQS里并没有实现，有不同的实现类根据自己情况去实现。
 
@@ -162,7 +166,7 @@ public final void acquire(int arg) {
 
 方法执行流程：
 
-###1.3.2  `addWaiter`方法
+### 1.3.4 addWaiter方法
 
 `tryAcquire`方法获取资源失败后则走`addWaiter`方法将当前线程封装成Node对象，插入到AQS队列。假设现在是第一次进入该方法，tail为null，进`enq`方法，下面是源码分析：
 
