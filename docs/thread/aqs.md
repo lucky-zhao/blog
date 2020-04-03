@@ -96,6 +96,8 @@ public class LockTest01 {
 
 ### 1.3 AQS源码
 
+这里源码逻辑可能比较绕，所以在下面分析的时候，我会把if else分开分析。分析if方法体的时候，就不用看else里面的东西，反之也一样。
+
 ### 1.3.1 概览
 
 先看一下AQS里的数据结构怎么定义的吧。
@@ -138,7 +140,7 @@ Node节点是对每一个加锁失败的线程的封装对象，里面包含了�
 ```
 /** 表示当前结点已取消调度。当timeout或被中断（响应中断的情况下），会触发变更为此状态，进入该状态后的结点将不会再变化 */
 static final int CANCELLED =  1;
-/** 标示需要被唤醒，表示后继结点在等待当前结点唤醒。后继结点入队时，会将前继结点的状态更新为SIGNAL*/
+/** 表示后继结点在等待当前结点唤醒。后面结点入队时，会将前一个结点的状态更新为SIGNAL(银行排队办业务，就是跟前排在自己前面的那个人说一下，我要休眠了，你业务办完了叫我一声)*/
 static final int SIGNAL    = -1;
 /** 线程在条件队列里等待，表示结点等待在Condition上，当其他线程调用了Condition的signal()方法后，CONDITION状态的结点将从等待队列转移到同步队列中，等待获取同步锁 */
 static final int CONDITION = -2;
@@ -164,11 +166,15 @@ public final void acquire(int arg) {
 }
 ```
 
-方法执行流程：
+如果没有获取到资源，则会走addWaiter方法。
 
 ### 1.3.4 addWaiter方法
 
-`tryAcquire`方法获取资源失败后则走`addWaiter`方法将当前线程封装成Node对象，插入到AQS队列。假设现在是第一次进入该方法，tail为null，进`enq`方法，下面是源码分析：
+`tryAcquire`方法获取资源失败后则走`addWaiter`方法将当前线程封装成Node对象，插入到AQS队列。看代码可以知道，一开始把tail赋值给了pred。有两种执行逻辑：
+
+情况一：如果pred不为null，说明当前AQS已经存在队列了，直接把当前Node插入到队尾即可，代码中已经加了注释。
+
+情况二：如果pred为null，说明现在AQS中还没有队列，则会进入enq方法；
 
 ```
 private Node addWaiter(Node mode) {
@@ -183,14 +189,15 @@ private Node addWaiter(Node mode) {
             return node;
         }
     }
-    enq(node);//如果tail为null则进入此方法
+    //逻辑二：如果tail为null，说明当前AQS中没有队列，则进入enq方法
+    enq(node);//
     return node;
 }
 ```
 
 * enq方法
 
-enq方法用自旋把当前节点放到队列中去，如果队列不存在则创建一个。
+enq方法用自旋把当前节点放到队列中去，如果队列不存在则创建一个。假设现在是第一次进该方法，也就是说当前AQS没有队列，则进入逻辑一方法体，else部分暂时先不看。
 
 ```
 private Node enq(final Node node) {
@@ -225,6 +232,7 @@ private Node enq(final Node node) {
     //自旋
     for (;;) {
         Node t = tail;//第一次进来的时候tail为null。。    第二次进来的时候tail已经不是null了
+        //逻辑一
         if (t == null) { // Must initialize
             if (compareAndSetHead(new Node()))//创建一个Node对象，用CAS操作设置为head节点
                 tail = head;//此时队列中只有一个节点就是上面刚创建的head节点，现在把tail也指向它，由于没有return 继续循环
@@ -242,4 +250,224 @@ private Node enq(final Node node) {
 
 ![enq方法](img/enq_fun_logic02.jpg "逻辑二")
 
-到这里enq方法就全部执行完毕了。明天在看接下来的代码。
+到这里enq方法就全部执行完毕了。其实上面讲的是线程没有抢到资源后，线程入队的逻辑，简单说就是，如果当前有队列，要怎么操作，没有队列，又怎么操作。由于这里的enq方法已经return出去了。所以回到这里了：
+
+```
+//根据上面分析，现在addWaiter方法已经把当前没有抢到资源的线程封装成Node，插入到队列里面了，现在继续走acquireQueued方法了。
+public final void acquire(int arg) {
+    if (!tryAcquire(arg) &&
+        acquireQueued(addWaiter(Node.EXCLUSIVE), arg))
+        selfInterrupt();
+}
+```
+
+* acquireQueued方法
+
+前面的方法，已经把没有抢到资源的线程放到队列了，`acquireQueued`方法就是用来定义线程进入休眠的逻辑。
+生活中的例子：上面的方法是去银行办理业务，人比较多，排队已经排好了，现在就找个地方坐会休息一下，等银行叫号(线程被唤醒)后，在起来做事。
+能进到这个方法，证明没有抢到锁的那个线程已经被加入到队尾了。假设这个线程叫t2。
+
+这个方法有两种执行逻辑：
+1. t2进入这个方法后，判断自己的前一个节点是不是head，意思就是，我t2是不是排在队列的第二个？如果是的话，则在尝试`tryAcquire`获取资源；
+2. 如果t2不是排在第二个，或者它还是没抢到锁，那么就被park；
+
+下面这段代码，只需要看for循环里的第一个if方法即可，也就是对应了第一种情况。
+
+```
+   final boolean acquireQueued(final Node node, int arg) {
+        boolean failed = true;//标示 是否抢到了资源
+        try {
+            boolean interrupted = false;//标记等待过程中是否被中断过
+            //自旋
+            for (;;) {
+                final Node p = node.predecessor();//获取当前node节点的上一个节点赋值给变量p，predecessor方法就不贴源码了，自己看一下就知道，就是获取当前节点的上一个节点。
+                //如果p这个节点是队列的head的话，说明自己这个节点排在第二个，则再一次尝试获取资源
+                //这个if判断可以理解成去火车站排队买票，看自己是不是排在第二个，如果是的话，则有资格尝试问问前面的人，你票买好了吗？如果自己排在更后面，前面还有很多人排队，那就没必要问了。
+                if (p == head && tryAcquire(arg)) {//如果拿到资源
+                    setHead(node);//当前节点抢到了锁，获取锁成功的线程作为新的head节点
+                    //这里可以发现一个规律：head节点,head.thread与head.prev永远为null, 但是head.next不为nul
+                    p.next = null; // help GC  把当前节点的上一个节点的next设置为null，把链表关系删除，出队
+                    failed = false;//记住这里，抢到锁是设置为false
+                    return interrupted;//返回是否被中断过状态
+                }
+                //下面这个逻辑这里先别看
+                if (shouldParkAfterFailedAcquire(p, node) &&
+                    parkAndCheckInterrupt())
+                    interrupted = true;
+            }
+        } finally {
+            if (failed)
+                cancelAcquire(node);
+        }
+    }
+```
+
+setHead方法：
+
+```
+/**
+ * 把传进来的node设置为head节点，并且把这个节点里的thread和prev属性设置为null
+ * @param node
+ */
+private void setHead(Node node) {
+    head = node;
+    node.thread = null;
+    node.prev = null;
+}
+```
+
+到这里第一种情况已经结束了，由于它返回了false，所以不会继续循环下去了，又回到了acquire方法：
+
+```
+public final void acquire(int arg) {
+    if (!tryAcquire(arg) &&
+        acquireQueued(addWaiter(Node.EXCLUSIVE), arg))
+        selfInterrupt();
+}
+```
+
+根据上面第一种情况，`acquireQueued`返回了false，因此整个方法结束，当前线程抢到了资源，加锁成功。此时图变成了这样：
+
+![enq方法](img/out.png "情况一")
+
+如图所示，后面那个线程node已经变成了head节点，一开始那个头节点，已经出队了。
+
+* 下面看第二种情况：
+
+下面代码只需看for里面的第二个if。
+
+```
+final boolean acquireQueued(final Node node, int arg) {
+    boolean failed = true;//标示 是否抢到了资源
+    try {
+        boolean interrupted = false;
+        for (;;) {
+            final Node p = node.predecessor();//获取当前node节点的上一个节点
+            //如果p这个节点是队列的head的话，说明自己这个节点排在第二个，则再一次尝试获取资源
+            //这个if判断可以理解成去火车站买票，先看自己是不是排在第二个，如果是的话，则可以有资格尝试问问前面的人，你票买好了吗？如果自己排在更后面，前面还有很多人排队，那就没必要问了。
+            if (p == head && tryAcquire(arg)) {//如果拿到资源
+                setHead(node);//当前节点抢到了锁，获取锁成功的线程作为新的head节点
+                //这里可以发现一个规律：head节点,head.thread与head.prev永远为null, 但是head.next不为nul
+                p.next = null; // help GC  把当前节点的上一个节点的next设置为null
+                failed = false;//标示已经抢到了资源
+                return interrupted;
+            }
+
+            //第二种情况，p是t2的上一个节点，node是就是当前没有抢到资源被加到队尾的线程t2
+            //这个if是根据状态判断是否要挂起线程
+            if (shouldParkAfterFailedAcquire(p, node) &&
+                parkAndCheckInterrupt())//如果前面的条件返回true，即 需要把线程挂起，就调用该方法，真正的把线程阻塞
+                interrupted = true;
+        }
+    } finally {
+        if (failed)// 如果抛出异常则取消锁的获取,进行出队(sync queue)操作
+            cancelAcquire(node);
+    }
+}
+```
+如果t2不是排在第二个，或者它还是没抢到锁，则根据状态进行判断，是否需要挂起线程：
+
+```
+private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
+    int ws = pred.waitStatus;//拿到上一个节点的状态
+    if (ws == Node.SIGNAL)
+        //如果前面这个节点的状态是SIGNAL，那我就可以放心的休眠了，这个状态参考上面贴出来的Node源码。
+        return true;
+    if (ws > 0) {//如果前面这个节点的线程已经被取消了
+        //那就循环继续往前面找，找到一个没有被取消的的节点
+        do {
+            node.prev = pred = pred.prev;
+        } while (pred.waitStatus > 0);
+        pred.next = node;//找到正常的节点后，在把自己插到他们后面
+    } else {
+        //如果前继节点为“0”或者“共享锁”状态，则设置前继节点为SIGNAL状态，告诉它事情做完了，通知我一下
+        compareAndSetWaitStatus(pred, ws, Node.SIGNAL);
+    }
+    return false;
+}
+```
+
+
+```
+private final boolean parkAndCheckInterrupt() {
+        LockSupport.park(this);//把线程挂起
+        return Thread.interrupted();//返回当前线程的中断状态
+}
+```
+
+整个`acquireQueued`方法大致流程如下：
+
+1. t2已经被加入带队列尾部了，先看看自己前一个节点是不是head，如果是的话，就尝试获取资源加锁，如果加锁成功则返回；
+2. 如果加锁失败，则拿到前一个节点的状态，如果是`SIGNAL`，那t2就可以安心的被挂起了，因为前面这个节点会唤醒它；
+3. 如果前面这个节点状态不是`SIGNAL`,它就会继续往队列前面一个一个的找过去，找到线程状态是`SIGNAL`的，然后就插到它后面；
+4. 然后正式被park，阻塞。如果被唤醒则继续开始抢锁，抢不到，又被加到队尾，开始重复第一个步骤。
+
+
+ok，到这边`acquire`方法才算分析完。。在来小结一下这个方法把。
+
+* 首先调用自定义的`tryAcquire()`方法去尝试获取资源，如果成功，则直接返回，加锁成功；
+* 加锁失败，先走`addWaiter`方法，把线程封装成Node，放入队列尾部，并且标志为独占模式；
+* `acquireQueued`方法让线程找到合适的位置park，有机会时，则会被唤醒，继续尝试获取资源，成功则返回，如果在等待过程中被中断了，则返回true，否则返回false；
+* 线程被中断了，实际上就是打了一个标示，并没有真正的中断，并且每次在调用`interrupted`的时候会重置线程的状态，所以可以看到在`acquire`方法里又调用了一下`selfInterrupt`,使线程中断。
+
+到这里这个方法就结束了，这也是`ReentrantLock`的lock方法流程。
+
+
+* release方法
+
+release和acquire方法是相反的操作，release是释放资源，唤醒其他线程。看下代码：
+
+```
+ /**
+     * 释放资源，唤醒其他线程
+     * @param arg
+     * @return
+     */
+    public final boolean release(int arg) {
+        if (tryRelease(arg)) {
+            Node h = head;//找到头节点，也就是当前持有锁的Node节点
+            if (h != null && h.waitStatus != 0)
+                unparkSuccessor(h);//unpark
+            return true;
+        }
+        return false;
+    }
+```
+
+它会先调用`tryRelease`来释放资源，而`tryRelease`在AQS里也是没有实现的，交给各个同步器自己去实现。
+
+```java
+protected boolean tryRelease(int arg) {
+    throw new UnsupportedOperationException();
+}
+```
+
+一般来讲调用`tryRelease`都会成功的，因为能调用到这个方法的线程，肯定已经获取了锁，现在释放掉就行，不过有个小问题要注意点，state不光标示是否被加锁，还表示了重入的次数，因此只有state=0的时候，才是真的释放了锁。
+
+看一下是怎么找到下一个节点并且唤醒的。
+
+```java
+/**
+ * 唤醒Node节点的下一个节点，如果有的话
+ *
+ * @param node the node
+ */
+private void unparkSuccessor(Node node) {
+    int ws = node.waitStatus;//拿到当前持有锁的节点状态
+    if (ws < 0)
+        compareAndSetWaitStatus(node, ws, 0);//CAS操作把状态值改成0
+
+    Node s = node.next;//找到下一个节点
+    if (s == null || s.waitStatus > 0) {//如果线程为null或者已取消
+        s = null;
+        for (Node t = tail; t != null && t != node; t = t.prev)//从后往前找
+            if (t.waitStatus <= 0)//状态 <=0的都是有效节点
+                s = t;
+    }
+    if (s != null)
+        LockSupport.unpark(s.thread);//唤醒找到的这个节点
+}
+```
+
+
+
